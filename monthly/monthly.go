@@ -11,79 +11,7 @@ import (
 	"time"
 )
 
-var (
-	minDt  = time.Date(1999, 1, 1, 0, 0, 0, 0, time.UTC)
-	maxDt  = time.Now()
-	missDt = time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)
-
-	lnIDMiss = "!"
-
-	monthMin, monthMax, monthMiss = minDt, maxDt, missDt
-
-	upbMin, upbMax, upbMiss = float32(0.0), float32(2000000.0), float32(-1.0)
-
-	dqStatMiss = "!"
-
-	dqStatLvl = make([]string, 0)
-
-	ageMin, ageMax, ageMiss                = int32(0), int32(480), int32(-1)
-	rTermLglMin, rTermLglMax, rTermLglMiss = int32(0), int32(480), int32(-1)
-
-	defectDtMin, defectDtMax, defectDtMiss = minDt, maxDt, missDt
-
-	modMiss = "N"
-	modLvl  = []string{"Y", "P", "N"}
-
-	zbMiss = "!"
-	zbLvl  = []string{"01", "02", "03", "96", "09", "15"}
-
-	zbDtMin, zbDtMax, zbDtMiss = minDt, maxDt, missDt
-
-	curRateMin, curRateMax, curRateMiss = float32(0.0), float32(15.0), float32(-1.0)
-	defrlMin, defrlMax, defrlMiss       = float32(0.0), float32(1000000.0), float32(-1.0)
-
-	lpdMin, lpdMax, lpdMiss = minDt, maxDt, missDt
-
-	fclProMiMin, fclProMiMax, fclProMiMiss    = float32(0.0), float32(500000.0), float32(-1.0)
-	fclProNetMin, fclProNetMax, fclProNetMiss = float32(0.0), float32(2000000.0), float32(-1.0)
-	fclProMwMin, fclProMwMax, fclProMwMiss    = float32(0.0), float32(2000000.0), float32(-1.0)
-	fclExpMin, fclExpMax, fclExpMiss          = float32(-200000.0), float32(0.0), float32(1.0)
-	fclLExpMin, fclLExpMax, fclLExpMiss       = float32(-120000.0), float32(0.0), float32(1.0)
-	fclPExpMin, fclPExpMax, fclPExpMiss       = float32(-120000.0), float32(0.0), float32(1.0)
-	fclTaxesMin, fclTaxesMax, fclTaxesMiss    = float32(-300000.0), float32(0.0), float32(1.0)
-	fclMExpMin, fclMExpMax, fclMExpMiss       = float32(0.0), float32(100000.0), float32(1.0)
-	fclLossMin, fclLossMax, fclLossMiss       = float32(-1000000.0), float32(200000.0), float32(100000000.0)
-	modTLossMin, modTLossMax, modTLossMiss    = float32(0.0), float32(150000.0), float32(-1.0)
-
-	stepModMiss = "N"
-	stepModLvl  = []string{"Y", "N"}
-
-	payPlMiss = "N"
-	payPlLvl  = []string{"Y", "P"}
-
-	eLTVMin, eLTVMax, eLTVMiss          = int32(1), int32(900), int32(-1)
-	zbUPBMin, zbUPBMax, zbUPBMiss       = float32(0.0), float32(2000000.0), float32(-1.0)
-	accrIntMin, accrIntMax, accrIntMiss = float32(0.0), float32(500000.0), float32(-1.0)
-
-	dqDisMiss = "N"
-	dqDisLvl  = []string{"Y"}
-
-	bapMiss = "!"
-	bapLvl  = []string{"F", "R", "T"}
-
-	modCLossMin, modCLossMax, modCLossMiss = float32(0.0), float32(150000.0), float32(-1.0)
-	intUPBMin, intUPBMax, intUPBMiss       = float32(0.0), float32(2000000.0), float32(-1.0)
-)
-
-// initialize legal Levels maps
-func init() {
-	// dqStat
-	for dq := 0; dq < 100; dq++ {
-		dqStatLvl = append(dqStatLvl, fmt.Sprintf("%d", dq))
-	}
-	dqStatLvl = append(dqStatLvl, "RA") // REO Acquisition
-
-}
+var TableDef *chutils.TableDef
 
 // gives the validation results for each field -- 0 = pass, 1 = value fail, 2 = type fail
 func vField(td *chutils.TableDef, data chutils.Row, valid chutils.Valid, validate bool) (interface{}, error) {
@@ -115,13 +43,76 @@ func xtraFields() (fds []*chutils.FieldDef) {
 	return
 }
 
-func reader(fileName string) (*file.Reader, error) {
-	f, err := os.Open(fileName)
-	if err != nil {
-		return nil, err
+func Build() *chutils.TableDef {
+	var (
+		minDt  = time.Date(1999, 1, 1, 0, 0, 0, 0, time.UTC)
+		maxDt  = time.Now()
+		missDt = time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)
+
+		lnIDMiss = "!"
+
+		monthMin, monthMax, monthMiss = minDt, maxDt, missDt
+
+		upbMin, upbMax, upbMiss = float32(0.0), float32(2000000.0), float32(-1.0)
+
+		dqStatMiss = "!"
+
+		dqStatLvl = make([]string, 0)
+
+		ageMin, ageMax, ageMiss                = int32(0), int32(480), int32(-1)
+		rTermLglMin, rTermLglMax, rTermLglMiss = int32(0), int32(480), int32(-1)
+
+		defectDtMin, defectDtMax, defectDtMiss = minDt, maxDt, missDt
+
+		modMiss = "N"
+		modLvl  = []string{"Y", "P", "N"}
+
+		zbMiss = "!"
+		zbLvl  = []string{"01", "02", "03", "96", "09", "15"}
+
+		zbDtMin, zbDtMax, zbDtMiss = minDt, maxDt, missDt
+
+		curRateMin, curRateMax, curRateMiss = float32(0.0), float32(15.0), float32(-1.0)
+		defrlMin, defrlMax, defrlMiss       = float32(0.0), float32(1000000.0), float32(-1.0)
+
+		lpdMin, lpdMax, lpdMiss = minDt, maxDt, missDt
+
+		fclProMiMin, fclProMiMax, fclProMiMiss    = float32(0.0), float32(500000.0), float32(-1.0)
+		fclProNetMin, fclProNetMax, fclProNetMiss = float32(0.0), float32(2000000.0), float32(-1.0)
+		fclProMwMin, fclProMwMax, fclProMwMiss    = float32(0.0), float32(2000000.0), float32(-1.0)
+		fclExpMin, fclExpMax, fclExpMiss          = float32(-200000.0), float32(0.0), float32(1.0)
+		fclLExpMin, fclLExpMax, fclLExpMiss       = float32(-120000.0), float32(0.0), float32(1.0)
+		fclPExpMin, fclPExpMax, fclPExpMiss       = float32(-120000.0), float32(0.0), float32(1.0)
+		fclTaxesMin, fclTaxesMax, fclTaxesMiss    = float32(-300000.0), float32(0.0), float32(1.0)
+		fclMExpMin, fclMExpMax, fclMExpMiss       = float32(0.0), float32(100000.0), float32(1.0)
+		fclLossMin, fclLossMax, fclLossMiss       = float32(-1000000.0), float32(200000.0), float32(100000000.0)
+		modTLossMin, modTLossMax, modTLossMiss    = float32(0.0), float32(150000.0), float32(-1.0)
+
+		stepModMiss = "N"
+		stepModLvl  = []string{"Y", "N"}
+
+		payPlMiss = "N"
+		payPlLvl  = []string{"Y", "P"}
+
+		eLTVMin, eLTVMax, eLTVMiss          = int32(1), int32(900), int32(-1)
+		zbUPBMin, zbUPBMax, zbUPBMiss       = float32(0.0), float32(2000000.0), float32(-1.0)
+		accrIntMin, accrIntMax, accrIntMiss = float32(0.0), float32(500000.0), float32(-1.0)
+
+		dqDisMiss = "N"
+		dqDisLvl  = []string{"Y"}
+
+		bapMiss = "!"
+		bapLvl  = []string{"F", "R", "T"}
+
+		modCLossMin, modCLossMax, modCLossMiss = float32(0.0), float32(150000.0), float32(-1.0)
+		intUPBMin, intUPBMax, intUPBMiss       = float32(0.0), float32(2000000.0), float32(-1.0)
+	)
+
+	for dq := 0; dq < 100; dq++ {
+		dqStatLvl = append(dqStatLvl, fmt.Sprintf("%d", dq))
 	}
-	rdr := file.NewReader(fileName, '|', '\n', '"', 0, 0, 0, f, 6000000)
-	rdr.Skip = 0
+	dqStatLvl = append(dqStatLvl, "RA") // REO Acquisition
+
 	fds := make(map[int]*chutils.FieldDef)
 
 	fd := &chutils.FieldDef{
@@ -565,22 +556,27 @@ func reader(fileName string) (*file.Reader, error) {
 		Missing:     intUPBMiss,
 	}
 	fds[31] = fd
-
-	rdr.SetTableSpec(chutils.NewTableDef("lnID, month", chutils.MergeTree, fds))
-	if e := rdr.TableSpec().Check(); e != nil {
-		return nil, e
-	}
-	return rdr, nil
+	return chutils.NewTableDef("lnID, month", chutils.MergeTree, fds)
 }
 
 // LoadRaw loads the raw monthly series
 func LoadRaw(fileName string, table string, create bool, nConcur int, con *chutils.Connect) (err error) {
-	// build initial reader
-	rdr, err := reader(fileName)
+
 	if err != nil {
 		log.Fatalln(err)
 	}
+
+	f, err := os.Open(fileName)
+	if err != nil {
+		return err
+	}
+	rdr := file.NewReader(fileName, '|', '\n', '"', 0, 0, 0, f, 6000000)
+	rdr.Skip = 0
 	defer rdr.Close()
+	rdr.SetTableSpec(Build())
+	if e := rdr.TableSpec().Check(); e != nil {
+		return e
+	}
 
 	// build slice of readers
 	rdrs, err := file.Rdrs(rdr, nConcur)
@@ -612,6 +608,7 @@ func LoadRaw(fileName string, table string, create bool, nConcur int, con *chuti
 			}
 		}
 	}
+	TableDef = rdrsn[0].TableSpec()
 
 	start := time.Now()
 	err = chutils.Concur(12, rdrsn, wrtrs, chutils.Load)
