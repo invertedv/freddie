@@ -1,9 +1,9 @@
-module freddie
+module github.com/invertedv/freddie
 
 go 1.18
 
 require (
-	github.com/invertedv/chutils v0.1.2
+	github.com/invertedv/chutils v0.1.4
 	github.com/mailru/go-clickhouse/v2 v2.0.0
 )
 

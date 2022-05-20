@@ -4,99 +4,18 @@ import (
 	"flag"
 	"fmt"
 	"github.com/invertedv/chutils"
+	s "github.com/invertedv/chutils/sql"
 	_ "github.com/mailru/go-clickhouse/v2"
 	"io/ioutil"
 	"log"
 	"time"
 )
 
-const lnIDMiss = "!"
-
-var monthMin, monthMax, MonthMiss time.Time = minDt, maxDt, missDt
-
-const upbMin, upbMax, upbMiss = float32(0.0), float32(2000000.0), float32(-1.0)
-
-const dqStatMiss = "!"
-
-var dqStatLvl map[string]int
-
-const ageMin, ageMax, ageMiss = int32(0), int32(480), int32(-1)
-const rTermLglMin, rTermLglMax, rTermLglMiss = int32(0), int32(480), int32(-1)
-
-var defectDtMin, defectDtMax, defectDtMiss = minDt, maxDt, missDt
-
-const modMiss = "!"
-
-var modLvl map[string]int
-
-const zbMiss = "!"
-
-var zbLvl map[string]int
-
-var zbDtMin, zbDtMax, zbDtMiss = minDt, maxDt, missDt
-
-const curRateMin, curRateMax, curRateMiss = float32(0.0), float32(15.0), float32(-1.0)
-const defrlMin, defrlMax, defrlMiss = float32(0.0), float32(1000000.0), float32(-1.0)
-
-var lpdMin, lpdMax, lpdMiss = minDt, maxDt, missDt
-
-const fclPrdMiMin, fclPrdMiMax, fclPrdMiMiss = float32(0.0), float32(500000.0), float32(-1.0)
-const fclPrdNetMin, fclPrdNetMax, fclPrdNetMiss = float32(0.0), float32(2000000.0), float32(-1.0)
-const fclPrdMwMin, fclPrdMwMax, fclPrdMwMiss = float32(0.0), float32(2000000.0), float32(-1.0)
-const fclExpMin, fclExpMax, fclExpMiss = float32(-200000.0), float32(0.0), float32(1.0) // fclExp is negative
-const fclLExpMin, fclLExpMax, fclLExpMiss = float32(-120000.0), float32(0.0), float32(1.0)
-const fclPExpMin, fclPExpMax, fclPExpMiss = float32(-120000.0), float32(0.0), float32(1.0)
-const fclTaxesMin, fclTaxesMax, fclTaxesMiss = float32(-300000.0), float32(0.0), float32(1.0)
-
-const (
-	maxPV  = float32(2500000.0) // max for property values
-	maxDef = float32(100000.0)  // max deferrals
-
-	maxRate = float32(15.0) // max for interest rates
-
-)
-
-var maxDt = time.Now().Add(time.Hour * 24 * 365)
-
-const (
-	minFloat = float32(0.0)
-	minInt   = int32(0)
-)
-
-var minDt = time.Date(1999, 1, 1, 0, 0, 0, 0, time.UTC)
-
-const (
-	missFloat     = float32(-1.0)
-	missFloatBNeg = float32(-10000000.0)
-	missInt       = int32(-1)
-	missStr       = "!"
-)
-
-var missDt = time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)
-
-// legal values
-
-// initialize legal values
-func init() {
-	// dqStat
-	dqStatLvl = make(map[string]int)
-	for dq := 0; dq < 100; dq++ {
-		dqStatLvl[fmt.Sprintf("%d", dq)] = 1
-	}
-	dqStatLvl["RA"] = 1 // REO Acquisition
-
-	// mod
-	modLvl = make(map[string]int)
-	modLvl["Y"], modLvl["P"], modLvl["N"] = 1, 1, 1
-
-	// zb
-	zbLvl = make(map[string]int)
-	zbLvl["01"], zbLvl["02"], zbLvl["03"], zbLvl["96"], zbLvl["09"], zbLvl["15"], zbLvl["00"] =
-		1, 1, 1, 1, 1, 1, 1
-
-}
-
+// TODO: consider removing validation in static/monthly and putting it in joined...?  or on arrays: take max of elements
+// TODO: consider changing validation to field names  key:val  upb:0;ltv:1....
+// TODO: for arrays, ... ? summary or actual array?
 func main() {
+	var err error
 	host := flag.String("host", "127.0.0.1", "string")
 	user := flag.String("user", "", "string")
 	password := flag.String("password", "", "string")
@@ -106,12 +25,140 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	con.DB.Ping()
+	defer con.Close()
+	/*
+		if _, e := con.Exec("SET max_memory_usage = 40000000000;"); e != nil {
+			log.Fatalln(e)
+		}
+		if _, e := con.Exec("SET max_bytes_before_external_group_by=20000000000;"); e != nil {
+			log.Fatalln(e)
+		}
+
+	*/
+	//con.Exec("SET max_threads=" + str(threads))
+
 	dir, err := ioutil.ReadDir(*srcDir)
 	if err == nil {
 		for _, f := range dir {
 			fmt.Println(f)
 		}
 	}
+	start := time.Now()
+	/*
+		fileName := "/mnt/drive3/data/freddie_data/historical_data_2000Q1.txt"
+		if err := static.LoadRaw(fileName, "bbb", true, con); err != nil {
+			log.Fatalln(err)
+		}
+
+		fileName = "/mnt/drive3/data/freddie_data/historical_data_time_2000Q1.txt"
+		if err := monthly.LoadRaw(fileName, "aaa", true, 12, con); err != nil {
+			log.Fatalln(err)
+		}
+
+	*/
+
+	qry := `
+WITH v AS (
+SELECT
+    lnID,
+    arrayStringConcat(arrayMap(x,y -> concat(x, ':', toString(y)), field, validation), ';') as x
+FROM ( 
+SELECT
+    lnID,
+    groupArray(f) AS field,
+    groupArray(v) AS validation
+FROM(    
+    SELECT
+      lnID,
+      field AS f,
+      Max(valid) AS v
+    FROM (
+        SELECT
+            lnID,
+            arrayElement(splitByChar(':', v), 1) AS field,
+            arrayElement(splitByChar(':', v), 2) = '0' ? 0 : 1 AS valid
+        FROM (    
+            SELECT
+                lnID,
+                arrayJoin(splitByChar(';', valMonthly)) AS v
+            FROM
+                aaa))
+     GROUP BY lnID, field
+     ORDER BY lnID, field)
+GROUP BY lnID))
+SELECT
+    s.*,
+    m.month,
+    m.upb,
+    m.dqStat,
+    m.age,
+    m.rTermLgl,
+    m.mod,
+    m.zb,
+    m.curRate,
+    m.defrl,
+    m.intUPB,
+    m.lpd,
+    m.defectDt,
+    m.zbDt,
+    m.zbUPB,
+    m.dqDis,
+    m.ProNet,
+    m.Loss,
+    m.mMonth,
+    m.mTLoss,
+    m.mCLoss,
+    m.mStep,
+    v.x AS valMonthly
+FROM
+    bbb AS s
+JOIN (
+    SELECT
+        lnID,
+        groupArray(month) AS month,
+        groupArray(upb) AS upb,
+        groupArray(dqStat) AS dqStat,
+        groupArray(age) AS age,
+        groupArray(rTermLgl) AS rTermLgl,
+        groupArray(mod) AS mod,
+        groupArray(zb) AS zb,
+        groupArray(curRate) AS curRate,
+        groupArray(defrl) AS defrl,
+        groupArray(intUPB) AS intUPB,
+        max(lpd) AS lpd,
+        max(defectDt) AS defectDt,
+        max(zbDt) AS zbDt,
+        max(zbUPB) as zbUPB,
+        groupArray(dqDis = 'Y' ? aaa.month : Null) AS dqDis,
+        groupArray(if(fclLoss > 1000000.0, Null, fclProNet)) AS ProNet,
+        groupArray(if(fclLoss > 1000000.0, Null, fclLoss)) AS Loss,
+        groupArray(if(modTLoss >= 0.0 or modCLoss >= 0.0 or stepMod = 'Y' , aaa.month, Null)) AS mMonth,
+        groupArray(if(modTLoss >= 0.0 or modCLoss >= 0.0 or stepMod = 'Y' , modTLoss, Null)) AS mTLoss,
+        groupArray(if(modTLoss >= 0.0 or modCLoss >= 0.0 or stepMod = 'Y' , modCLoss, Null)) AS mCLoss,
+        groupArray(if(modTLoss >= 0.0 or modCLoss >= 0.0 or stepMod = 'Y' , stepMod, Null)) AS mStep
+    FROM
+        aaa
+    GROUP BY lnID) AS m
+ON s.lnID = m.lnID
+JOIN v
+ON s.lnID = v.lnID
+`
+	srdr := s.NewReader(qry, con)
+	if e := srdr.Init("lnID", chutils.MergeTree); e != nil {
+		log.Fatalln(e)
+	}
+	if e := srdr.TableSpec().Nest("monthly", "month", "intUPB"); e != nil {
+		log.Fatalln(e)
+	}
+	srdr.TableSpec().Nest("mods", "mMonth", "mStep")
+	//	srdr.TableSpec().Nest("fcl", "ProNet", "Loss")
+	srdr.Name = "ccc"
+	if e := srdr.TableSpec().Create(con, "ccc"); e != nil {
+		log.Fatalln(e)
+	}
+	if e := srdr.Insert(); e != nil {
+		log.Fatalln(e)
+	}
+	fmt.Println("elapsed time", time.Since(start), "total", (48000/117.)*time.Since(start).Hours())
 
 }

@@ -2,10 +2,12 @@ github.com/davecgh/go-spew v1.1.0 h1:ZDRjVQ15GmhC3fiQ8ni8+OwkZQO4DARzQgrnXU1Liz8
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/google/uuid v1.2.0 h1:qJYtXnJRWmpe7m/3XlyhrsLrEURqHRM2kxzoxXqyUDs=
 github.com/google/uuid v1.2.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
-github.com/invertedv/chutils v0.1.1 h1:KLAJgV10GiKquyiQh8hMxuHSZrmuIFekowYwLaev4dA=
-github.com/invertedv/chutils v0.1.1/go.mod h1:SEiTPfYMGp4RSOhGfmeWlo0gpa3RjDHSZBUf6gCJaQo=
 github.com/invertedv/chutils v0.1.2 h1:l6eb2LO3Q7Bir7WwTfTVTVw4vhPwfedx2SVT1x10J34=
 github.com/invertedv/chutils v0.1.2/go.mod h1:SEiTPfYMGp4RSOhGfmeWlo0gpa3RjDHSZBUf6gCJaQo=
+github.com/invertedv/chutils v0.1.3 h1:sNgNl4wtvNdBxYNc4XBclBCmj5M3EvqDvmY+iT6d3J8=
+github.com/invertedv/chutils v0.1.3/go.mod h1:SEiTPfYMGp4RSOhGfmeWlo0gpa3RjDHSZBUf6gCJaQo=
+github.com/invertedv/chutils v0.1.4 h1:5A5loIb7SRvOMVnU6ATd4vDqcNUZ7mcO2Bg03t+O5Ec=
+github.com/invertedv/chutils v0.1.4/go.mod h1:SEiTPfYMGp4RSOhGfmeWlo0gpa3RjDHSZBUf6gCJaQo=
 github.com/mailru/go-clickhouse/v2 v2.0.0 h1:O+ZGJDwp/E5W19ooeouEqaOlg+qxA+4Zsfjt63QcnVU=
 github.com/mailru/go-clickhouse/v2 v2.0.0/go.mod h1:TwxN829KnFZ7jAka9l9EoCV+U0CBFq83SFev4oLbnNU=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=

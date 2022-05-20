@@ -1,13 +1,121 @@
-package main
+package monthly
 
 import (
+	"fmt"
 	"github.com/invertedv/chutils"
 	"github.com/invertedv/chutils/file"
+	"github.com/invertedv/chutils/nested"
+	s "github.com/invertedv/chutils/sql"
 	"log"
 	"os"
+	"time"
 )
 
-func monthlyTD(fileName string) (*file.Reader, error) {
+var (
+	minDt  = time.Date(1999, 1, 1, 0, 0, 0, 0, time.UTC)
+	maxDt  = time.Now()
+	missDt = time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	lnIDMiss = "!"
+
+	monthMin, monthMax, monthMiss = minDt, maxDt, missDt
+
+	upbMin, upbMax, upbMiss = float32(0.0), float32(2000000.0), float32(-1.0)
+
+	dqStatMiss = "!"
+
+	dqStatLvl = make([]string, 0)
+
+	ageMin, ageMax, ageMiss                = int32(0), int32(480), int32(-1)
+	rTermLglMin, rTermLglMax, rTermLglMiss = int32(0), int32(480), int32(-1)
+
+	defectDtMin, defectDtMax, defectDtMiss = minDt, maxDt, missDt
+
+	modMiss = "N"
+	modLvl  = []string{"Y", "P", "N"}
+
+	zbMiss = "!"
+	zbLvl  = []string{"01", "02", "03", "96", "09", "15"}
+
+	zbDtMin, zbDtMax, zbDtMiss = minDt, maxDt, missDt
+
+	curRateMin, curRateMax, curRateMiss = float32(0.0), float32(15.0), float32(-1.0)
+	defrlMin, defrlMax, defrlMiss       = float32(0.0), float32(1000000.0), float32(-1.0)
+
+	lpdMin, lpdMax, lpdMiss = minDt, maxDt, missDt
+
+	fclProMiMin, fclProMiMax, fclProMiMiss    = float32(0.0), float32(500000.0), float32(-1.0)
+	fclProNetMin, fclProNetMax, fclProNetMiss = float32(0.0), float32(2000000.0), float32(-1.0)
+	fclProMwMin, fclProMwMax, fclProMwMiss    = float32(0.0), float32(2000000.0), float32(-1.0)
+	fclExpMin, fclExpMax, fclExpMiss          = float32(-200000.0), float32(0.0), float32(1.0)
+	fclLExpMin, fclLExpMax, fclLExpMiss       = float32(-120000.0), float32(0.0), float32(1.0)
+	fclPExpMin, fclPExpMax, fclPExpMiss       = float32(-120000.0), float32(0.0), float32(1.0)
+	fclTaxesMin, fclTaxesMax, fclTaxesMiss    = float32(-300000.0), float32(0.0), float32(1.0)
+	fclMExpMin, fclMExpMax, fclMExpMiss       = float32(0.0), float32(100000.0), float32(1.0)
+	fclLossMin, fclLossMax, fclLossMiss       = float32(-1000000.0), float32(200000.0), float32(100000000.0)
+	modTLossMin, modTLossMax, modTLossMiss    = float32(0.0), float32(150000.0), float32(-1.0)
+
+	stepModMiss = "N"
+	stepModLvl  = []string{"Y", "N"}
+
+	payPlMiss = "N"
+	payPlLvl  = []string{"Y", "P"}
+
+	eLTVMin, eLTVMax, eLTVMiss          = int32(1), int32(900), int32(-1)
+	zbUPBMin, zbUPBMax, zbUPBMiss       = float32(0.0), float32(2000000.0), float32(-1.0)
+	accrIntMin, accrIntMax, accrIntMiss = float32(0.0), float32(500000.0), float32(-1.0)
+
+	dqDisMiss = "N"
+	dqDisLvl  = []string{"Y"}
+
+	bapMiss = "!"
+	bapLvl  = []string{"F", "R", "T"}
+
+	modCLossMin, modCLossMax, modCLossMiss = float32(0.0), float32(150000.0), float32(-1.0)
+	intUPBMin, intUPBMax, intUPBMiss       = float32(0.0), float32(2000000.0), float32(-1.0)
+)
+
+// initialize legal Levels maps
+func init() {
+	// dqStat
+	for dq := 0; dq < 100; dq++ {
+		dqStatLvl = append(dqStatLvl, fmt.Sprintf("%d", dq))
+	}
+	dqStatLvl = append(dqStatLvl, "RA") // REO Acquisition
+
+}
+
+// gives the validation results for each field -- 0 = pass, 1 = value fail, 2 = type fail
+func vField(td *chutils.TableDef, data chutils.Row, valid chutils.Valid, validate bool) (interface{}, error) {
+	res := make([]byte, 0)
+	for ind, v := range valid {
+		name := td.FieldDefs[ind].Name
+		switch v {
+		case chutils.VPass:
+			res = append(res, []byte(name+":0;")...)
+		default:
+			res = append(res, []byte(name+":1;")...)
+		}
+	}
+	// delete trailing ;
+	res[len(res)-1] = ' '
+	return string(res), nil
+}
+
+func xtraFields() (fds []*chutils.FieldDef) {
+	fd := &chutils.FieldDef{
+		Name:        "valMonthly",
+		ChSpec:      chutils.ChField{Base: chutils.ChString},
+		Description: "validation results for each field: 0=pass, 1=fail",
+		Legal:       chutils.NewLegalValues(),
+		Missing:     "!",
+		Width:       0,
+	}
+	fds = []*chutils.FieldDef{fd}
+	return
+}
+
+func reader(fileName string) (*file.Reader, error) {
 	f, err := os.Open(fileName)
 	if err != nil {
 		return nil, err
@@ -35,7 +143,7 @@ func monthlyTD(fileName string) (*file.Reader, error) {
 		},
 		Description: "month of data",
 		Legal:       &chutils.LegalValues{LowLimit: monthMin, HighLimit: monthMax},
-		Missing:     MonthMiss,
+		Missing:     monthMiss,
 	}
 	fds[1] = fd
 
@@ -61,8 +169,8 @@ func monthlyTD(fileName string) (*file.Reader, error) {
 			OuterFunc: "",
 			Format:    "",
 		},
-		Description: "DQ status code",
-		Legal:       &chutils.LegalValues{Levels: &dqStatLvl},
+		Description: "DQ status code: 0-100 months, RA (REO), !",
+		Legal:       &chutils.LegalValues{Levels: dqStatLvl},
 		Missing:     dqStatMiss,
 	}
 	fds[3] = fd
@@ -117,8 +225,8 @@ func monthlyTD(fileName string) (*file.Reader, error) {
 			OuterFunc: "",
 			Format:    "",
 		},
-		Description: "modification flag",
-		Legal:       &chutils.LegalValues{Levels: &modLvl},
+		Description: "modification flag: Y, N, P (prior)",
+		Legal:       &chutils.LegalValues{Levels: modLvl},
 		Missing:     modMiss,
 	}
 	fds[7] = fd
@@ -131,8 +239,8 @@ func monthlyTD(fileName string) (*file.Reader, error) {
 			OuterFunc: "",
 			Format:    "",
 		},
-		Description: "zero balance code",
-		Legal:       &chutils.LegalValues{Levels: &zbLvl},
+		Description: "zero balance code: 01,02,03,96,09,15",
+		Legal:       &chutils.LegalValues{Levels: zbLvl},
 		Missing:     zbMiss}
 	fds[8] = fd
 
@@ -193,7 +301,7 @@ func monthlyTD(fileName string) (*file.Reader, error) {
 	fds[12] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "fclPrdMi",
+		Name: "fclProMi",
 		ChSpec: chutils.ChField{
 			Base:      chutils.ChFloat,
 			Length:    32,
@@ -201,13 +309,13 @@ func monthlyTD(fileName string) (*file.Reader, error) {
 			Format:    "",
 		},
 		Description: "foreclosure credit enhancement proceeds",
-		Legal:       &chutils.LegalValues{LowLimit: fclPrdMiMin, HighLimit: fclPrdMiMax},
-		Missing:     fclPrdMiMiss,
+		Legal:       &chutils.LegalValues{LowLimit: fclProMiMin, HighLimit: fclProMiMax},
+		Missing:     fclProMiMiss,
 	}
 	fds[13] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "fclPrdNet",
+		Name: "fclProNet",
 		ChSpec: chutils.ChField{
 			Base:      chutils.ChFloat,
 			Length:    32,
@@ -215,13 +323,13 @@ func monthlyTD(fileName string) (*file.Reader, error) {
 			Format:    "",
 		},
 		Description: "foreclosure net proceeds",
-		Legal:       &chutils.LegalValues{LowLimit: fclPrdNetMin, HighLimit: fclPrdNetMax},
-		Missing:     fclPrdNetMiss,
+		Legal:       &chutils.LegalValues{LowLimit: fclProNetMin, HighLimit: fclProNetMax},
+		Missing:     fclProNetMiss,
 	}
 	fds[14] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "fclPrdMw",
+		Name: "fclProMw",
 		ChSpec: chutils.ChField{
 			Base:      chutils.ChFloat,
 			Length:    32,
@@ -229,8 +337,8 @@ func monthlyTD(fileName string) (*file.Reader, error) {
 			Format:    "",
 		},
 		Description: "foreclosure make whole proceeds",
-		Legal:       &chutils.LegalValues{LowLimit: fclPrdMwMin, HighLimit: fclPrdMwMax},
-		Missing:     fclPrdMwMiss,
+		Legal:       &chutils.LegalValues{LowLimit: fclProMwMin, HighLimit: fclProMwMax},
+		Missing:     fclProMwMiss,
 	}
 	fds[15] = fd
 
@@ -284,196 +392,230 @@ func monthlyTD(fileName string) (*file.Reader, error) {
 			OuterFunc: "",
 			Format:    "",
 		},
-		Description: "foreclosure property taxes and insurance",
+		Description: "foreclosure property taxes and insurance (values are negative)",
 		Legal:       &chutils.LegalValues{LowLimit: fclTaxesMin, HighLimit: fclTaxesMax},
 		Missing:     fclTaxesMiss,
 	}
 	fds[19] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "fcl_misc_cost",
+		Name: "fclMExp",
 		ChSpec: chutils.ChField{
 			Base:      chutils.ChFloat,
 			Length:    32,
 			OuterFunc: "",
 			Format:    "",
 		},
-		Description: "",
-		Legal:       &chutils.LegalValues{LowLimit: -800000.0, HighLimit: 4000000.0},
-		Missing:     -1.0,
+		Description: "foreclosure misc expenses (values are negative)",
+		Legal:       &chutils.LegalValues{LowLimit: fclMExpMin, HighLimit: fclMExpMax},
+		Missing:     fclMExpMiss,
 	}
 	fds[20] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "fcl_loss",
+		Name: "fclLoss",
 		ChSpec: chutils.ChField{
 			Base:      chutils.ChFloat,
 			Length:    32,
 			OuterFunc: "",
 			Format:    "",
 		},
-		Description: "",
-		Legal:       &chutils.LegalValues{LowLimit: -5000000.0, HighLimit: 800000.0},
-		Missing:     -1.0,
+		Description: "foreclosure loss amount (a loss is a negative value)",
+		Legal:       &chutils.LegalValues{LowLimit: fclLossMin, HighLimit: fclLossMax},
+		Missing:     fclLossMiss,
 	}
 	fds[21] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "mod_t_loss",
+		Name: "modTLoss",
 		ChSpec: chutils.ChField{
 			Base:      chutils.ChFloat,
 			Length:    32,
 			OuterFunc: "",
 			Format:    "",
 		},
-		Description: "",
-		Legal:       &chutils.LegalValues{LowLimit: -70000.0, HighLimit: 400000.0},
-		Missing:     -1.0,
+		Description: "total modification loss",
+		Legal:       &chutils.LegalValues{LowLimit: modTLossMin, HighLimit: modTLossMax},
+		Missing:     modTLossMiss,
 	}
 	fds[22] = fd
 
-	ln_stepmod_flg := make(map[string]int)
-	ln_stepmod_flg["Y"], ln_stepmod_flg["N"], ln_stepmod_flg["X"] = 1, 1, 1
 	fd = &chutils.FieldDef{
-		Name: "ln_stepmod_flg",
+		Name: "stepMod",
 		ChSpec: chutils.ChField{
 			Base:      chutils.ChFixedString,
 			Length:    1,
 			OuterFunc: "",
 			Format:    "",
 		},
-		Description: "",
-		Legal:       &chutils.LegalValues{Levels: &ln_stepmod_flg},
-		Missing:     "!",
+		Description: "step mod flag: Y, N, !",
+		Legal:       &chutils.LegalValues{Levels: stepModLvl},
+		Missing:     stepModMiss,
 	}
 	fds[23] = fd
 
-	ln_dfrd_pay_flg := make(map[string]int)
-	ln_dfrd_pay_flg["Y"], ln_dfrd_pay_flg["P"], ln_dfrd_pay_flg["N"] = 1, 1, 1
 	fd = &chutils.FieldDef{
-		Name: "ln_dfrd_pay_flg",
+		Name: "payPl",
 		ChSpec: chutils.ChField{
 			Base:      chutils.ChFixedString,
 			Length:    1,
 			OuterFunc: "",
 			Format:    "",
 		},
-		Description: "",
-		Legal:       &chutils.LegalValues{Levels: &ln_dfrd_pay_flg},
-		Missing:     "!",
+		Description: "pay plan: Y (yes), P (prior), N (No)",
+		Legal:       &chutils.LegalValues{Levels: payPlLvl},
+		Missing:     payPlMiss,
 	}
 	fds[24] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "ln_curr_eltv",
+		Name: "eLTV",
 		ChSpec: chutils.ChField{
-			Base:      chutils.ChFloat,
+			Base:      chutils.ChInt,
 			Length:    32,
 			OuterFunc: "",
 			Format:    "",
 		},
-		Description: "",
-		Legal:       &chutils.LegalValues{LowLimit: 0.0, HighLimit: 250.0},
-		Missing:     -1.0,
+		Description: "estimated LTV based on Freddie AVM",
+		Legal:       &chutils.LegalValues{LowLimit: eLTVMin, HighLimit: eLTVMax},
+		Missing:     eLTVMiss,
 	}
 	fds[25] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "ln_zb_prin",
+		Name: "zbUPB",
 		ChSpec: chutils.ChField{
 			Base:      chutils.ChFloat,
 			Length:    32,
 			OuterFunc: "",
 			Format:    "",
 		},
-		Description: "",
-		Legal:       &chutils.LegalValues{LowLimit: 0.0, HighLimit: 5000000.0},
-		Missing:     -1.0,
+		Description: "UPB just prior to zero balance",
+		Legal:       &chutils.LegalValues{LowLimit: zbUPBMin, HighLimit: zbUPBMax},
+		Missing:     zbUPBMiss,
 	}
 	fds[26] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "ln_dq_accr_int",
+		Name: "accrInt",
 		ChSpec: chutils.ChField{
 			Base:      chutils.ChFloat,
 			Length:    32,
-			OuterFunc: "Nullable",
+			OuterFunc: "",
 			Format:    "",
 		},
-		Description: "",
-		Legal:       &chutils.LegalValues{LowLimit: -80000.0, HighLimit: 900000.0},
-		Missing:     -1.0,
+		Description: "delinquent accrued interest",
+		Legal:       &chutils.LegalValues{LowLimit: accrIntMin, HighLimit: accrIntMax},
+		Missing:     accrIntMiss,
 	}
 	fds[27] = fd
 
-	ln_dq_distr_flg := make(map[string]int)
-	ln_dq_distr_flg["Y"], ln_dq_distr_flg["N"] = 1, 1
 	fd = &chutils.FieldDef{
-		Name: "ln_dq_distr_flg",
+		Name: "dqDis",
 		ChSpec: chutils.ChField{
 			Base:      chutils.ChFixedString,
 			Length:    1,
 			OuterFunc: "",
 			Format:    "",
 		},
-		Description: "",
-		Legal:       &chutils.LegalValues{Levels: &ln_dq_distr_flg},
-		Missing:     "!",
+		Description: "dq due to disaster: Y, N",
+		Legal:       &chutils.LegalValues{Levels: dqDisLvl},
+		Missing:     dqDisMiss,
 	}
 	fds[28] = fd
 
-	borr_asst_plan := make(map[string]int)
-	borr_asst_plan["F"], borr_asst_plan["R"], borr_asst_plan["T"], borr_asst_plan["N"] = 1, 1, 1, 1
 	fd = &chutils.FieldDef{
-		Name: "borr_asst_plan",
+		Name: "bap",
 		ChSpec: chutils.ChField{
 			Base:      chutils.ChFixedString,
 			Length:    1,
 			OuterFunc: "",
 			Format:    "",
 		},
-		Description: "",
-		Legal:       &chutils.LegalValues{Levels: &borr_asst_plan},
-		Missing:     "!",
+		Description: "borrower assistant plan: F (forebearance), R (repayment), T (trial) ! (NA)",
+		Legal:       &chutils.LegalValues{Levels: bapLvl},
+		Missing:     bapMiss,
 	}
 	fds[29] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "mod_c_loss",
+		Name: "modCLoss",
 		ChSpec: chutils.ChField{
 			Base:      chutils.ChFloat,
 			Length:    32,
 			OuterFunc: "",
 			Format:    "",
 		},
-		Description: "",
-		Legal:       &chutils.LegalValues{LowLimit: -70000.0, HighLimit: 400000.0},
-		Missing:     -1.0,
+		Description: "current period modification loss",
+		Legal:       &chutils.LegalValues{LowLimit: modCLossMin, HighLimit: modCLossMax},
+		Missing:     modCLossMiss,
 	}
 	fds[30] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "ln_ib_prin",
+		Name: "intUPB",
 		ChSpec: chutils.ChField{
 			Base:      chutils.ChFloat,
 			Length:    32,
 			OuterFunc: "",
 			Format:    "",
 		},
-		Description: "",
-		Legal:       &chutils.LegalValues{LowLimit: 0.0, HighLimit: 5000000.0},
-		Missing:     -1.0,
+		Description: "interest bearing UPB",
+		Legal:       &chutils.LegalValues{LowLimit: intUPBMin, HighLimit: intUPBMax},
+		Missing:     intUPBMiss,
 	}
 	fds[31] = fd
 
-	rdr.SetTableSpec(&chutils.TableDef{
-		//		Name:      "aaa",
-		Key:       "ln_id",
-		Engine:    chutils.MergeTree,
-		FieldDefs: fds,
-	})
+	rdr.SetTableSpec(chutils.NewTableDef("lnID, month", chutils.MergeTree, fds))
 	if e := rdr.TableSpec().Check(); e != nil {
-		log.Fatalln(e)
+		return nil, e
 	}
 	return rdr, nil
+}
+
+// LoadRaw loads the raw monthly series
+func LoadRaw(fileName string, table string, create bool, nConcur int, con *chutils.Connect) (err error) {
+	// build initial reader
+	rdr, err := reader(fileName)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	defer rdr.Close()
+
+	// build slice of readers
+	rdrs, err := file.Rdrs(rdr, nConcur)
+	if err != nil {
+		return
+	}
+
+	var wrtrs []chutils.Output
+	if wrtrs, err = s.Wrtrs(table, nConcur, con); err != nil {
+		return
+	}
+
+	newCalcs := make([]nested.NewCalcFn, 0)
+	newCalcs = append(newCalcs, vField)
+
+	rdrsn := make([]chutils.Input, 0)
+	for j, r := range rdrs {
+		defer r.Close()
+		defer wrtrs[j].Close()
+
+		rn, e := nested.NewReader(r, xtraFields(), newCalcs)
+		if e != nil {
+			return e
+		}
+		rdrsn = append(rdrsn, rn)
+		if j == 0 && create {
+			if err = rn.TableSpec().Create(con, table); err != nil {
+				return err
+			}
+		}
+	}
+
+	start := time.Now()
+	err = chutils.Concur(12, rdrsn, wrtrs, chutils.Load)
+	elapsed := time.Since(start)
+	fmt.Println("Elapsed time", elapsed.Seconds(), "seconds")
+	return
 }
