@@ -1,17 +1,14 @@
 package joined
 
 import (
-	"fmt"
 	"github.com/invertedv/chutils"
 	s "github.com/invertedv/chutils/sql"
 	mon "github.com/invertedv/freddie/monthly"
 	stat "github.com/invertedv/freddie/static"
 	"log"
-	"time"
 )
 
-func Load(monthly string, static string, table string, tmpDB string, con *chutils.Connect) error {
-	start := time.Now()
+func Load(monthly string, static string, table string, tmpDB string, create bool, con *chutils.Connect) error {
 	if err := stat.LoadRaw(static, "bbb", true, con); err != nil {
 		log.Fatalln(err)
 	}
@@ -159,13 +156,14 @@ ON s.lnID = v.lnID
 	}
 
 	srdr.Name = "ddd"
-	if e := srdr.TableSpec().Create(con, srdr.Name); e != nil {
-		log.Fatalln(e)
+	if create {
+		if e := srdr.TableSpec().Create(con, srdr.Name); e != nil {
+			log.Fatalln(e)
+		}
 	}
 	if e := srdr.Insert(); e != nil {
 		log.Fatalln(e)
 	}
-	fmt.Println("elapsed time", time.Since(start), "total", (48000/117.)*time.Since(start).Hours())
 
 	return nil
 }

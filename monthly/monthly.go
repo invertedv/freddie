@@ -472,7 +472,7 @@ func LoadRaw(fileN string, table string, create bool, nConcur int, con *chutils.
 	TableDef = rdrsn[0].TableSpec()
 
 	start := time.Now()
-	err = chutils.Concur(12, rdrsn, wrtrs, chutils.Load)
+	err = chutils.Concur(12, rdrsn, wrtrs, 400000)
 	elapsed := time.Since(start)
 	fmt.Println("Elapsed time", elapsed.Seconds(), "seconds")
 	return

@@ -90,7 +90,7 @@ func LoadRaw(filen string, table string, create bool, con *chutils.Connect) (err
 	}
 
 	wrtr := s.NewWriter(table, con)
-	if err = chutils.Load(nrdr, wrtr); err != nil {
+	if err = chutils.Export(nrdr, wrtr, 400000); err != nil {
 		return
 	}
 

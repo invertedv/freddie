@@ -2,7 +2,7 @@ module github.com/invertedv/freddie
 
 go 1.18
 
-require github.com/invertedv/chutils v0.1.8
+require github.com/invertedv/chutils v0.1.9
 
 require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.0.14 // indirect
