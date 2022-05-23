@@ -15,7 +15,6 @@ func Load(monthly string, static string, table string, tmpDB string, con *chutil
 	if err := stat.LoadRaw(static, "bbb", true, con); err != nil {
 		log.Fatalln(err)
 	}
-
 	if err := mon.LoadRaw(monthly, "aaa", true, 12, con); err != nil {
 		log.Fatalln(err)
 	}
@@ -67,6 +66,7 @@ SELECT
     m.defectDt,
     m.zbDt,
     m.zbUPB,
+    m.fileMonthly,
     m.dqDis,
 
     arrayElement(m.fclMonth, length(m.fclMonth)) AS fclMonth,
@@ -105,7 +105,8 @@ JOIN (
         max(lpd) AS lpd,
         max(defectDt) AS defectDt,
         max(zbDt) AS zbDt,
-        max(zbUPB) as zbUPB,
+        max(zbUPB) AS zbUPB,
+        max(fileMonthly) AS fileMonthly,
 
         groupArray(dqDis = 'Y' ? aaa.month : Null) AS dqDis,
         groupArray(if(fclLoss > 1000000.0, Null, aaa.month)) AS fclMonth,
@@ -146,6 +147,10 @@ ON s.lnID = v.lnID
 			fd.Description = "month of modification"
 		case "fclMonth":
 			fd.Description = "month of foreclosure resolution"
+		case "valMonthly":
+			fd.ChSpec.OuterFunc = "LowCardinality"
+		case "valStatic":
+			fd.ChSpec.OuterFunc = "LowCardinality"
 		}
 	}
 

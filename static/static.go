@@ -198,7 +198,7 @@ func Build() *chutils.TableDef {
 		harpMiss = strMiss
 		harpLvl  = []string{"Y", ""}
 
-		pVMthdMin, pVMthdMax, pVMtdMiss = int32(1), int32(9), int32(-1)
+		valMthMin, valMthMax, valMthMiss = int32(1), int32(9), int32(-1)
 
 		ioMiss = strMiss
 		ioLvl  = []string{"Y", "N"}
@@ -537,11 +537,11 @@ func Build() *chutils.TableDef {
 	fds[28] = fd
 
 	fd = &chutils.FieldDef{
-		Name:        "pVMthd",
+		Name:        "valMth",
 		ChSpec:      chutils.ChField{chutils.ChInt, 32, "", ""},
 		Description: "property value method 1 (ACE), 2 (Full) 3 (Other)",
-		Legal:       &chutils.LegalValues{LowLimit: pVMthdMin, HighLimit: pVMthdMax},
-		Missing:     pVMtdMiss,
+		Legal:       &chutils.LegalValues{LowLimit: valMthMin, HighLimit: valMthMax},
+		Missing:     valMthMiss,
 	}
 	fds[29] = fd
 
@@ -579,9 +579,17 @@ func vField(td *chutils.TableDef, data chutils.Row, valid chutils.Valid, validat
 	return string(res), nil
 }
 
+// fileName is global since used as a closure to fField
+var fileName string
+
+// fField adds the file name data comes from to output table
+func fField(td *chutils.TableDef, data chutils.Row, valid chutils.Valid, validate bool) (interface{}, error) {
+	return fileName, nil
+}
+
 // xtraFields defines extra fields for the nested reader
 func xtraFields() (fds []*chutils.FieldDef) {
-	fd := &chutils.FieldDef{
+	vfd := &chutils.FieldDef{
 		Name:        "valStatic",
 		ChSpec:      chutils.ChField{Base: chutils.ChString},
 		Description: "validation results for each field: 0=pass, 1=fail",
@@ -589,12 +597,21 @@ func xtraFields() (fds []*chutils.FieldDef) {
 		Missing:     "!",
 		Width:       0,
 	}
-	fds = []*chutils.FieldDef{fd}
+	ffd := &chutils.FieldDef{
+		Name:        "fileStatic",
+		ChSpec:      chutils.ChField{Base: chutils.ChString, OuterFunc: "LowCardinality"},
+		Description: "file static data loaded from",
+		Legal:       chutils.NewLegalValues(),
+		Missing:     "!",
+		Width:       0,
+	}
+	fds = []*chutils.FieldDef{vfd, ffd}
 	return
 }
 
 // LoadRaw loads the raw monthly series
-func LoadRaw(fileName string, table string, create bool, con *chutils.Connect) (err error) {
+func LoadRaw(filen string, table string, create bool, con *chutils.Connect) (err error) {
+	fileName = filen
 	// build initial reader
 	f, err := os.Open(fileName)
 	if err != nil {
@@ -610,7 +627,7 @@ func LoadRaw(fileName string, table string, create bool, con *chutils.Connect) (
 	}
 
 	newCalcs := make([]nested.NewCalcFn, 0)
-	newCalcs = append(newCalcs, vField)
+	newCalcs = append(newCalcs, vField, fField)
 
 	nrdr, err := nested.NewReader(rdr, xtraFields(), newCalcs)
 	TableDef = nrdr.TableSpec()

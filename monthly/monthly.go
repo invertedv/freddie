@@ -30,8 +30,16 @@ func vField(td *chutils.TableDef, data chutils.Row, valid chutils.Valid, validat
 	return string(res), nil
 }
 
+// fileName is global since used as a closure to fField
+var fileName string
+
+// fField adds the file name data comes from to output table
+func fField(td *chutils.TableDef, data chutils.Row, valid chutils.Valid, validate bool) (interface{}, error) {
+	return fileName, nil
+}
+
 func xtraFields() (fds []*chutils.FieldDef) {
-	fd := &chutils.FieldDef{
+	vfd := &chutils.FieldDef{
 		Name:        "valMonthly",
 		ChSpec:      chutils.ChField{Base: chutils.ChString},
 		Description: "validation results for each field: 0=pass, 1=fail",
@@ -39,7 +47,15 @@ func xtraFields() (fds []*chutils.FieldDef) {
 		Missing:     "!",
 		Width:       0,
 	}
-	fds = []*chutils.FieldDef{fd}
+	ffd := &chutils.FieldDef{
+		Name:        "fileMonthly",
+		ChSpec:      chutils.ChField{Base: chutils.ChString, OuterFunc: "LowCardinality"},
+		Description: "file monthly data loaded from",
+		Legal:       chutils.NewLegalValues(),
+		Missing:     "!",
+		Width:       0,
+	}
+	fds = []*chutils.FieldDef{vfd, ffd}
 	return
 }
 
@@ -560,8 +576,8 @@ func Build() *chutils.TableDef {
 }
 
 // LoadRaw loads the raw monthly series
-func LoadRaw(fileName string, table string, create bool, nConcur int, con *chutils.Connect) (err error) {
-
+func LoadRaw(fileN string, table string, create bool, nConcur int, con *chutils.Connect) (err error) {
+	fileName = fileN
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -590,7 +606,7 @@ func LoadRaw(fileName string, table string, create bool, nConcur int, con *chuti
 	}
 
 	newCalcs := make([]nested.NewCalcFn, 0)
-	newCalcs = append(newCalcs, vField)
+	newCalcs = append(newCalcs, vField, fField)
 
 	rdrsn := make([]chutils.Input, 0)
 	for j, r := range rdrs {
