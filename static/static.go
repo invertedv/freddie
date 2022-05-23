@@ -13,6 +13,94 @@ import (
 // TableDef is the *chutils.TableDef of the nested reader
 var TableDef *chutils.TableDef
 
+// gives the validation results for each field -- 0 = pass, 1 = value fail, 2 = type fail
+func vField(td *chutils.TableDef, data chutils.Row, valid chutils.Valid, validate bool) (interface{}, error) {
+	res := make([]byte, 0)
+	for ind, v := range valid {
+		name := td.FieldDefs[ind].Name
+		switch v {
+		case chutils.VPass:
+			res = append(res, []byte(name+":0;")...)
+		default:
+			res = append(res, []byte(name+":1;")...)
+		}
+	}
+	// delete trailing ;
+	res[len(res)-1] = ' '
+	return string(res), nil
+}
+
+// fileName is global since used as a closure to fField
+var fileName string
+
+// fField adds the file name data comes from to output table
+func fField(td *chutils.TableDef, data chutils.Row, valid chutils.Valid, validate bool) (interface{}, error) {
+	return fileName, nil
+}
+
+// xtraFields defines extra fields for the nested reader
+func xtraFields() (fds []*chutils.FieldDef) {
+	vfd := &chutils.FieldDef{
+		Name:        "qaStatic",
+		ChSpec:      chutils.ChField{Base: chutils.ChString, Funcs: chutils.OuterFuncs{chutils.OuterLowCardinality}},
+		Description: "validation results for each field: 0=pass, 1=fail",
+		Legal:       chutils.NewLegalValues(),
+		Missing:     "!",
+		Width:       0,
+	}
+	ffd := &chutils.FieldDef{
+		Name:        "fileStatic",
+		ChSpec:      chutils.ChField{Base: chutils.ChString, Funcs: chutils.OuterFuncs{chutils.OuterLowCardinality}},
+		Description: "file static data loaded from",
+		Legal:       chutils.NewLegalValues(),
+		Missing:     "!",
+		Width:       0,
+	}
+	fds = []*chutils.FieldDef{vfd, ffd}
+	return
+}
+
+// LoadRaw loads the raw monthly series
+func LoadRaw(filen string, table string, create bool, con *chutils.Connect) (err error) {
+	fileName = filen
+	// build initial reader
+	f, err := os.Open(fileName)
+	if err != nil {
+		return err
+	}
+	rdr := file.NewReader(fileName, '|', '\n', '"', 0, 0, 0, f, 6000000)
+	rdr.Skip = 0
+	defer rdr.Close()
+
+	rdr.SetTableSpec(Build())
+	if e := rdr.TableSpec().Check(); e != nil {
+		return e
+	}
+
+	newCalcs := make([]nested.NewCalcFn, 0)
+	newCalcs = append(newCalcs, vField, fField)
+
+	nrdr, err := nested.NewReader(rdr, xtraFields(), newCalcs)
+	TableDef = nrdr.TableSpec()
+
+	if create {
+		if err = nrdr.TableSpec().Create(con, table); err != nil {
+			return err
+		}
+	}
+
+	wrtr := s.NewWriter(table, con)
+	if err = chutils.Load(nrdr, wrtr); err != nil {
+		return
+	}
+
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	return nil
+}
+
 // Build builds the TableDef for the static field files
 func Build() *chutils.TableDef {
 	var (
@@ -25,14 +113,14 @@ func Build() *chutils.TableDef {
 		strMiss = "!" // generic missing value for FixedString(1)
 
 		fpDtMin, fpDtMax, fpDtMiss = minDt, nowDt, missDt
-		ficoMin, ficoMax, ficoMiss = int32(301), int32(850), int32(0)
+		ficoMin, ficoMax, ficoMiss = int32(301), int32(850), int32(-1)
 
 		firstTimeMiss = "N"
 		firstTimeLvl  = []string{"Y", "N"}
 
 		matDtMin, matDtMax, matDtMiss = minDt, futDt, missDt
 
-		msaMiss = "error"
+		msaMiss = "00000"
 		msaLvl  = []string{"10180", "10380", "10420", "10500", "10540", "10580", "10740", "10780", "10900", "11020", "11100", "11180",
 			"11244", "11260", "11300", "11340", "11460", "11500", "11540", "11640", "11700", "12020", "12060", "12100", "12220",
 			"12260", "12420", "12540", "12580", "12620", "12700", "12940", "12980", "13020", "13140", "13220", "13380", "13460",
@@ -66,7 +154,7 @@ func Build() *chutils.TableDef {
 			"45220", "45300", "45460", "45500", "45540", "45780", "45820", "45940", "46060", "46140", "46220", "46300", "46340",
 			"46520", "46540", "46660", "46700", "47020", "47220", "47260", "47300", "47380", "47460", "47580", "47644", "47664",
 			"47894", "47940", "48060", "48140", "48260", "48300", "48424", "48540", "48620", "48660", "48700", "48864", "48900",
-			"49020", "49180", "49340", "49420", "49500", "49620", "49660", "49700", "49740", ""}
+			"49020", "49180", "49340", "49420", "49500", "49620", "49660", "49700", "49740"}
 
 		miMin, miMax, miMiss       = int32(0), int32(55), int32(-1)
 		unitMin, unitMax, unitMiss = int32(1), int32(4), int32(-1)
@@ -74,11 +162,11 @@ func Build() *chutils.TableDef {
 		occMiss = strMiss
 		occLvl  = []string{"P", "S", "I"}
 
-		cltvMin, cltvMax, cltvMiss    = int32(1), int32(998), int32(-1)
-		dtiMin, dtiMax, dtiMiss       = int32(1), int32(65), int32(-1)
-		opbMin, opbMax, opbMiss       = float32(1000.0), float32(2000000.0), float32(-1.0)
-		ltvMin, ltvMax, ltvMiss       = int32(1), int32(998), int32(-1)
-		oRateMin, oRateMax, oRateMiss = float32(0.0), float32(15.0), float32(-1.0)
+		cltvMin, cltvMax, cltvMiss = int32(1), int32(998), int32(-1)
+		dtiMin, dtiMax, dtiMiss    = int32(1), int32(65), int32(-1)
+		opbMin, opbMax, opbMiss    = float32(1000.0), float32(2000000.0), float32(-1.0)
+		ltvMin, ltvMax, ltvMiss    = int32(1), int32(998), int32(-1)
+		rateMin, rateMax, rateMiss = float32(0.0), float32(15.0), float32(-1.0)
 
 		channelMiss = strMiss
 		channelLvl  = []string{"B", "R", "T", "C"}
@@ -89,8 +177,8 @@ func Build() *chutils.TableDef {
 		amTypeMiss = "XXX"
 		amTypeLvl  = []string{"FRM", "ARM"}
 
-		stMiss = "XX"
-		stLvl  = []string{"AK", "AL", "AR", "AZ", "CA", "CO", "CT", "DC", "DE", "FL", "GA", "GU", "HI", "IA", "ID",
+		stateMiss = "XX"
+		stateLvl  = []string{"AK", "AL", "AR", "AZ", "CA", "CO", "CT", "DC", "DE", "FL", "GA", "GU", "HI", "IA", "ID",
 			"IL", "IN", "KS", "KY", "LA", "MA", "MD", "ME", "MI", "MN", "MO", "MS", "MT", "NC", "ND",
 			"NE", "NH", "NJ", "NM", "NV", "NY", "OH", "OK", "OR", "PA", "PR", "RI", "SC", "SD", "TN",
 			"TX", "UT", "VA", "VI", "VT", "WA", "WI", "WV", "WY"}
@@ -98,7 +186,7 @@ func Build() *chutils.TableDef {
 		propTypeMiss = "XX"
 		propTypeLvl  = []string{"SF", "CO", "CP", "MH", "PU"}
 
-		zipMiss = "error"
+		zipMiss = "XXXXX"
 		zipLvl  = []string{"00500", "00600", "00700", "00800", "00900", "01000", "01100", "01200", "01300", "01400", "01500", "01600",
 			"01700", "01800", "01900", "02000", "02100", "02200", "02300", "02400", "02500", "02600", "02700", "02800",
 			"02900", "03000", "03100", "03200", "03300", "03400", "03500", "03600", "03700", "03800", "03900", "04000",
@@ -180,8 +268,8 @@ func Build() *chutils.TableDef {
 
 		lnIDMiss = "error"
 
-		purpMiss = strMiss
-		purpLvl  = []string{"P", "C", "N", "R"}
+		purposeMiss = strMiss
+		purposeLvl  = []string{"P", "C", "N", "R"}
 
 		termMin, termMax, termMiss          = int32(1), int32(700), int32(-1)
 		numBorrMin, numBorrMax, numBorrMiss = int32(1), int32(10), int32(-1)
@@ -189,68 +277,54 @@ func Build() *chutils.TableDef {
 		sellerMiss   = "unknown"
 		servicerMiss = "unknown"
 
-		sConformMiss = strMiss
-		sConformLvl  = []string{"Y", ""}
+		sConformMiss = "N"
+		sConformLvl  = []string{"Y", "N"}
 
-		pgmMiss = strMiss
-		pgmLvl  = []string{"H", "9"}
+		programMiss = "N"
+		programLvl  = []string{"H", "N"}
 
-		harpMiss = strMiss
-		harpLvl  = []string{"Y", ""}
+		harpMiss = "N"
+		harpLvl  = []string{"Y", "N"}
 
-		valMthMin, valMthMax, valMthMiss = int32(1), int32(9), int32(-1)
+		valMthdMiss = strMiss
+		valMthdLvl  = []string{"1", "2", "3"}
 
-		ioMiss = strMiss
+		ioMiss = "N"
 		ioLvl  = []string{"Y", "N"}
 	)
 	fds := make(map[int]*chutils.FieldDef)
 
 	fd := &chutils.FieldDef{
 		Name:        "fico",
-		ChSpec:      chutils.ChField{chutils.ChInt, 32, "", ""},
-		Description: "fico at origination",
+		ChSpec:      chutils.ChField{Base: chutils.ChInt, Length: 32},
+		Description: "fico at origination, 301-850, missing=-1 ",
 		Legal:       &chutils.LegalValues{LowLimit: ficoMin, HighLimit: ficoMax},
 		Missing:     ficoMiss,
 	}
 	fds[0] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "fpDt",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChDate,
-			Length:    0,
-			OuterFunc: "",
-			Format:    "200601",
-		},
-		Description: "first payment date",
+		Name:        "fpDt",
+		ChSpec:      chutils.ChField{Base: chutils.ChDate, Format: "200601"},
+		Description: "first payment date, missing=1/1/1970",
 		Legal:       &chutils.LegalValues{LowLimit: fpDtMin, HighLimit: fpDtMax},
 		Missing:     fpDtMiss,
 	}
 	fds[1] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "firstTime",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChFixedString,
-			Length:    1,
-			OuterFunc: "",
-			Format:    "",
-		},
-		Description: "first time homebuyer: Y, N",
+		Name:        "firstTime",
+		ChSpec:      chutils.ChField{Base: chutils.ChFixedString, Length: 1},
+		Description: "first time homebuyer: Y, N, missing=N",
 		Legal:       &chutils.LegalValues{Levels: firstTimeLvl},
 		Missing:     firstTimeMiss,
 	}
 	fds[2] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "matDt",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChDate,
-			Length:    0,
-			OuterFunc: "",
-			Format:    "200601",
-		},
-		Description: "loan maturity date (initial)",
+		Name:        "matDt",
+		ChSpec:      chutils.ChField{Base: chutils.ChDate, Format: "200601"},
+		Description: "loan maturity date (initial), missing=1/1/1970",
 		Legal:       &chutils.LegalValues{LowLimit: matDtMin, HighLimit: matDtMax},
 		Missing:     matDtMiss,
 	}
@@ -258,8 +332,8 @@ func Build() *chutils.TableDef {
 
 	fd = &chutils.FieldDef{
 		Name:        "msa",
-		ChSpec:      chutils.ChField{chutils.ChFixedString, 5, "", ""},
-		Description: "msa/division code",
+		ChSpec:      chutils.ChField{Base: chutils.ChFixedString, Length: 5},
+		Description: "msa/division code, missing/not in MSA=00000",
 		Legal:       &chutils.LegalValues{Levels: msaLvl},
 		Missing:     msaMiss,
 	}
@@ -267,8 +341,8 @@ func Build() *chutils.TableDef {
 
 	fd = &chutils.FieldDef{
 		Name:        "mi",
-		ChSpec:      chutils.ChField{chutils.ChInt, 32, "", ""},
-		Description: "mi percentage",
+		ChSpec:      chutils.ChField{Base: chutils.ChInt, Length: 32},
+		Description: "mi percentage, 0-55, missing=-1",
 		Legal:       &chutils.LegalValues{LowLimit: miMin, HighLimit: miMax},
 		Missing:     miMiss,
 	}
@@ -276,22 +350,17 @@ func Build() *chutils.TableDef {
 
 	fd = &chutils.FieldDef{
 		Name:        "units",
-		ChSpec:      chutils.ChField{chutils.ChInt, 32, "", ""},
-		Description: "# of units in the property",
+		ChSpec:      chutils.ChField{Base: chutils.ChInt, Length: 32},
+		Description: "# of units in the property, 1-4, missing=-1",
 		Legal:       &chutils.LegalValues{LowLimit: unitMin, HighLimit: unitMax},
 		Missing:     unitMiss,
 	}
 	fds[6] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "occ",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChFixedString,
-			Length:    1,
-			OuterFunc: "",
-			Format:    "",
-		},
-		Description: "property occupancy: P (primary), S (secondary), I (investor)",
+		Name:        "occ",
+		ChSpec:      chutils.ChField{Base: chutils.ChFixedString, Length: 1},
+		Description: "property occupancy: P (primary), S (secondary), I (investor), missing=!",
 		Legal:       &chutils.LegalValues{Levels: occLvl},
 		Missing:     occMiss,
 	}
@@ -299,8 +368,8 @@ func Build() *chutils.TableDef {
 
 	fd = &chutils.FieldDef{
 		Name:        "cltv",
-		ChSpec:      chutils.ChField{chutils.ChInt, 32, "", ""},
-		Description: "combined cltv at origination",
+		ChSpec:      chutils.ChField{Base: chutils.ChInt, Length: 32},
+		Description: "combined cltv at origination, 1-998, missing=-1",
 		Legal:       &chutils.LegalValues{LowLimit: cltvMin, HighLimit: cltvMax},
 		Missing:     cltvMiss,
 	}
@@ -308,8 +377,8 @@ func Build() *chutils.TableDef {
 
 	fd = &chutils.FieldDef{
 		Name:        "dti",
-		ChSpec:      chutils.ChField{chutils.ChInt, 32, "", ""},
-		Description: "dti at origination",
+		ChSpec:      chutils.ChField{Base: chutils.ChInt, Length: 32},
+		Description: "dti at origination, 1-65, missing=-1",
 		Legal:       &chutils.LegalValues{LowLimit: dtiMin, HighLimit: dtiMax},
 		Missing:     dtiMiss,
 	}
@@ -317,7 +386,7 @@ func Build() *chutils.TableDef {
 
 	fd = &chutils.FieldDef{
 		Name:        "opb",
-		ChSpec:      chutils.ChField{chutils.ChFloat, 32, "", ""},
+		ChSpec:      chutils.ChField{Base: chutils.ChFloat, Length: 32},
 		Description: "balance at origination",
 		Legal:       &chutils.LegalValues{LowLimit: opbMin, HighLimit: opbMax},
 		Missing:     opbMiss,
@@ -326,101 +395,71 @@ func Build() *chutils.TableDef {
 
 	fd = &chutils.FieldDef{
 		Name:        "ltv",
-		ChSpec:      chutils.ChField{chutils.ChInt, 32, "", ""},
-		Description: "ltv at origination",
+		ChSpec:      chutils.ChField{Base: chutils.ChInt, Length: 32},
+		Description: "ltv at origination, 1-998, missing=-1",
 		Legal:       &chutils.LegalValues{LowLimit: ltvMin, HighLimit: ltvMax},
 		Missing:     ltvMiss,
 	}
 	fds[11] = fd
 
 	fd = &chutils.FieldDef{
-		Name:        "oRate",
-		ChSpec:      chutils.ChField{chutils.ChFloat, 32, "", ""},
-		Description: "note rate at origination",
-		Legal:       &chutils.LegalValues{LowLimit: oRateMin, HighLimit: oRateMax},
-		Missing:     oRateMiss,
+		Name:        "rate",
+		ChSpec:      chutils.ChField{Base: chutils.ChFloat, Length: 32},
+		Description: "note rate at origination, 0-15, missing=-1",
+		Legal:       &chutils.LegalValues{LowLimit: rateMin, HighLimit: rateMax},
+		Missing:     rateMiss,
 	}
 	fds[12] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "channel",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChFixedString,
-			Length:    1,
-			OuterFunc: "",
-			Format:    "",
-		},
-		Description: "acquisition channel: B, R, T, C",
+		Name:        "channel",
+		ChSpec:      chutils.ChField{Base: chutils.ChFixedString, Length: 1},
+		Description: "acquisition channel: B, R, T, C, missing=!",
 		Legal:       &chutils.LegalValues{Levels: channelLvl},
 		Missing:     channelMiss,
 	}
 	fds[13] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "pPen",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChFixedString,
-			Length:    1,
-			OuterFunc: "",
-			Format:    "",
-		},
-		Description: "prepay penalty flag: Y, N",
+		Name:        "pPen",
+		ChSpec:      chutils.ChField{Base: chutils.ChFixedString, Length: 1},
+		Description: "prepay penalty flag: Y, N, missing=!",
 		Legal:       &chutils.LegalValues{Levels: pPenLvl},
 		Missing:     ppenMiss,
 	}
 	fds[14] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "amType",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChFixedString,
-			Length:    3,
-			OuterFunc: "",
-			Format:    "",
-		},
-		Description: "amortization type: FRM, ARM",
+		Name:        "amType",
+		ChSpec:      chutils.ChField{Base: chutils.ChFixedString, Length: 3},
+		Description: "amortization type: FRM, ARM, missing=XXX",
 		Legal:       &chutils.LegalValues{Levels: amTypeLvl},
 		Missing:     amTypeMiss,
 	}
 	fds[15] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "st",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChFixedString,
-			Length:    2,
-			OuterFunc: "",
-			Format:    "",
-		},
-		Description: "property state",
-		Legal:       &chutils.LegalValues{Levels: stLvl},
-		Missing:     stMiss,
+		Name:        "state",
+		ChSpec:      chutils.ChField{Base: chutils.ChFixedString, Length: 2},
+		Description: "property state postal abbreviation, missing=XX",
+		Legal:       &chutils.LegalValues{Levels: stateLvl},
+		Missing:     stateMiss,
 	}
 	fds[16] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "propType",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChFixedString,
-			Length:    2,
-			OuterFunc: "",
-			Format:    "",
-		},
-		Description: "property type: SF (single family), CO (condo), PU (PUD), CP (coop), MH (manufactured)",
+		Name:        "propType",
+		ChSpec:      chutils.ChField{Base: chutils.ChFixedString, Length: 2},
+		Description: "property type: SF (single family), CO (condo), PU (PUD), CP (coop), MH (manufactured), missing=XX",
 		Legal:       &chutils.LegalValues{Levels: propTypeLvl},
 		Missing:     propTypeMiss,
 	}
 	fds[17] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "zip",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChFixedString,
-			Length:    5,
-			OuterFunc: "",
-			Format:    "",
-		},
-		Description: "3-digit zip (last 2 digits are 00)",
+		Name:        "zip",
+		ChSpec:      chutils.ChField{Base: chutils.ChFixedString, Length: 5},
+		Description: "3-digit zip (last 2 digits are 00), missing=XXXXX",
 		Legal:       &chutils.LegalValues{Levels: zipLvl},
 		Missing:     zipMiss,
 	}
@@ -428,7 +467,7 @@ func Build() *chutils.TableDef {
 
 	fd = &chutils.FieldDef{
 		Name:        "lnID",
-		ChSpec:      chutils.ChField{chutils.ChString, 0, "", ""},
+		ChSpec:      chutils.ChField{Base: chutils.ChString},
 		Description: "Loan ID PYYQnXXXXXXX P=F or A YY=year, n=quarter",
 		Legal:       &chutils.LegalValues{},
 		Missing:     lnIDMiss,
@@ -436,22 +475,17 @@ func Build() *chutils.TableDef {
 	fds[19] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "purp",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChFixedString,
-			Length:    1,
-			OuterFunc: "",
-			Format:    "",
-		},
-		Description: "loan purpose: P (purch), C (cash out refi), N (rate/term refi) R (refi)",
-		Legal:       &chutils.LegalValues{Levels: purpLvl},
-		Missing:     purpMiss,
+		Name:        "purpose",
+		ChSpec:      chutils.ChField{Base: chutils.ChFixedString, Length: 1},
+		Description: "loan purpose: P (purch), C (cash out refi), N (rate/term refi) R (refi), missing=!",
+		Legal:       &chutils.LegalValues{Levels: purposeLvl},
+		Missing:     purposeMiss,
 	}
 	fds[20] = fd
 
 	fd = &chutils.FieldDef{
 		Name:        "term",
-		ChSpec:      chutils.ChField{chutils.ChInt, 32, "", ""},
+		ChSpec:      chutils.ChField{Base: chutils.ChInt, Length: 32},
 		Description: "loan term at origination",
 		Legal:       &chutils.LegalValues{LowLimit: termMin, HighLimit: termMax},
 		Missing:     termMiss,
@@ -460,8 +494,8 @@ func Build() *chutils.TableDef {
 
 	fd = &chutils.FieldDef{
 		Name:        "numBorr",
-		ChSpec:      chutils.ChField{chutils.ChInt, 32, "", ""},
-		Description: "number of borrowers",
+		ChSpec:      chutils.ChField{Base: chutils.ChInt, Length: 32},
+		Description: "number of borrowers, 1-10, missing=-1",
 		Legal:       &chutils.LegalValues{LowLimit: numBorrMin, HighLimit: numBorrMax},
 		Missing:     numBorrMiss,
 	}
@@ -469,7 +503,7 @@ func Build() *chutils.TableDef {
 
 	fd = &chutils.FieldDef{
 		Name:        "seller",
-		ChSpec:      chutils.ChField{chutils.ChString, 0, "", ""},
+		ChSpec:      chutils.ChField{Base: chutils.ChString, Funcs: chutils.OuterFuncs{chutils.OuterLowCardinality}},
 		Description: "name of seller",
 		Legal:       &chutils.LegalValues{},
 		Missing:     sellerMiss,
@@ -478,7 +512,7 @@ func Build() *chutils.TableDef {
 
 	fd = &chutils.FieldDef{
 		Name:        "servicer",
-		ChSpec:      chutils.ChField{chutils.ChString, 0, "", ""},
+		ChSpec:      chutils.ChField{Base: chutils.ChString, Funcs: chutils.OuterFuncs{chutils.OuterLowCardinality}},
 		Description: "name of most recent servicer",
 		Legal:       &chutils.LegalValues{},
 		Missing:     servicerMiss,
@@ -486,13 +520,8 @@ func Build() *chutils.TableDef {
 	fds[24] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "sConform",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChFixedString,
-			Length:    1,
-			OuterFunc: "",
-			Format:    "",
-		},
+		Name:        "sConform",
+		ChSpec:      chutils.ChField{Base: chutils.ChFixedString, Length: 1},
 		Description: "super conforming flag: Y, N",
 		Legal:       &chutils.LegalValues{Levels: sConformLvl},
 		Missing:     sConformMiss,
@@ -501,7 +530,7 @@ func Build() *chutils.TableDef {
 
 	fd = &chutils.FieldDef{
 		Name:        "preHARPlnID",
-		ChSpec:      chutils.ChField{chutils.ChString, 0, "", ""},
+		ChSpec:      chutils.ChField{Base: chutils.ChString, Length: 0},
 		Description: "for HARP loans, lnID of prior loan",
 		Legal:       &chutils.LegalValues{},
 		Missing:     lnIDMiss,
@@ -509,27 +538,17 @@ func Build() *chutils.TableDef {
 	fds[26] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "pgm",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChFixedString,
-			Length:    1,
-			OuterFunc: "",
-			Format:    "",
-		},
+		Name:        "program",
+		ChSpec:      chutils.ChField{Base: chutils.ChFixedString, Length: 1},
 		Description: "freddie program: H (home possible) N (not in a program)",
-		Legal:       &chutils.LegalValues{Levels: pgmLvl},
-		Missing:     pgmMiss,
+		Legal:       &chutils.LegalValues{Levels: programLvl},
+		Missing:     programMiss,
 	}
 	fds[27] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "harp",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChFixedString,
-			Length:    1,
-			OuterFunc: "",
-			Format:    "",
-		},
+		Name:        "harp",
+		ChSpec:      chutils.ChField{Base: chutils.ChFixedString, Length: 1},
 		Description: "HARP loan: Y, N",
 		Legal:       &chutils.LegalValues{Levels: harpLvl},
 		Missing:     harpMiss,
@@ -537,115 +556,21 @@ func Build() *chutils.TableDef {
 	fds[28] = fd
 
 	fd = &chutils.FieldDef{
-		Name:        "valMth",
-		ChSpec:      chutils.ChField{chutils.ChInt, 32, "", ""},
-		Description: "property value method 1 (ACE), 2 (Full) 3 (Other)",
-		Legal:       &chutils.LegalValues{LowLimit: valMthMin, HighLimit: valMthMax},
-		Missing:     valMthMiss,
+		Name:        "valMthd",
+		ChSpec:      chutils.ChField{Base: chutils.ChFixedString, Length: 1},
+		Description: "property value method 1 (ACE), 2 (Full) 3 (Other), missing=!",
+		Legal:       &chutils.LegalValues{Levels: valMthdLvl},
+		Missing:     valMthdMiss,
 	}
 	fds[29] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "io",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChFixedString,
-			Length:    1,
-			OuterFunc: "",
-			Format:    "",
-		},
+		Name:        "io",
+		ChSpec:      chutils.ChField{Base: chutils.ChFixedString, Length: 1},
 		Description: "io Flag: Y, N",
 		Legal:       &chutils.LegalValues{Levels: ioLvl},
 		Missing:     ioMiss,
 	}
 	fds[30] = fd
 	return chutils.NewTableDef("lnID", chutils.MergeTree, fds)
-
-}
-
-// gives the validation results for each field -- 0 = pass, 1 = value fail, 2 = type fail
-func vField(td *chutils.TableDef, data chutils.Row, valid chutils.Valid, validate bool) (interface{}, error) {
-	res := make([]byte, 0)
-	for ind, v := range valid {
-		name := td.FieldDefs[ind].Name
-		switch v {
-		case chutils.VPass:
-			res = append(res, []byte(name+":0;")...)
-		default:
-			res = append(res, []byte(name+":1;")...)
-		}
-	}
-	// delete trailing ;
-	res[len(res)-1] = ' '
-	return string(res), nil
-}
-
-// fileName is global since used as a closure to fField
-var fileName string
-
-// fField adds the file name data comes from to output table
-func fField(td *chutils.TableDef, data chutils.Row, valid chutils.Valid, validate bool) (interface{}, error) {
-	return fileName, nil
-}
-
-// xtraFields defines extra fields for the nested reader
-func xtraFields() (fds []*chutils.FieldDef) {
-	vfd := &chutils.FieldDef{
-		Name:        "valStatic",
-		ChSpec:      chutils.ChField{Base: chutils.ChString},
-		Description: "validation results for each field: 0=pass, 1=fail",
-		Legal:       chutils.NewLegalValues(),
-		Missing:     "!",
-		Width:       0,
-	}
-	ffd := &chutils.FieldDef{
-		Name:        "fileStatic",
-		ChSpec:      chutils.ChField{Base: chutils.ChString, OuterFunc: "LowCardinality"},
-		Description: "file static data loaded from",
-		Legal:       chutils.NewLegalValues(),
-		Missing:     "!",
-		Width:       0,
-	}
-	fds = []*chutils.FieldDef{vfd, ffd}
-	return
-}
-
-// LoadRaw loads the raw monthly series
-func LoadRaw(filen string, table string, create bool, con *chutils.Connect) (err error) {
-	fileName = filen
-	// build initial reader
-	f, err := os.Open(fileName)
-	if err != nil {
-		return err
-	}
-	rdr := file.NewReader(fileName, '|', '\n', '"', 0, 0, 0, f, 6000000)
-	rdr.Skip = 0
-	defer rdr.Close()
-
-	rdr.SetTableSpec(Build())
-	if e := rdr.TableSpec().Check(); e != nil {
-		return e
-	}
-
-	newCalcs := make([]nested.NewCalcFn, 0)
-	newCalcs = append(newCalcs, vField, fField)
-
-	nrdr, err := nested.NewReader(rdr, xtraFields(), newCalcs)
-	TableDef = nrdr.TableSpec()
-
-	if create {
-		if err = nrdr.TableSpec().Create(con, table); err != nil {
-			return err
-		}
-	}
-
-	wrtr := s.NewWriter(table, con)
-	if err = chutils.Load(nrdr, wrtr); err != nil {
-		return
-	}
-
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	return nil
 }

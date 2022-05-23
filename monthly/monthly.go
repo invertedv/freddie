@@ -40,8 +40,8 @@ func fField(td *chutils.TableDef, data chutils.Row, valid chutils.Valid, validat
 
 func xtraFields() (fds []*chutils.FieldDef) {
 	vfd := &chutils.FieldDef{
-		Name:        "valMonthly",
-		ChSpec:      chutils.ChField{Base: chutils.ChString},
+		Name:        "qaMonthly",
+		ChSpec:      chutils.ChField{Base: chutils.ChString, Funcs: chutils.OuterFuncs{chutils.OuterLowCardinality}},
 		Description: "validation results for each field: 0=pass, 1=fail",
 		Legal:       chutils.NewLegalValues(),
 		Missing:     "!",
@@ -49,7 +49,7 @@ func xtraFields() (fds []*chutils.FieldDef) {
 	}
 	ffd := &chutils.FieldDef{
 		Name:        "fileMonthly",
-		ChSpec:      chutils.ChField{Base: chutils.ChString, OuterFunc: "LowCardinality"},
+		ChSpec:      chutils.ChField{Base: chutils.ChString, Funcs: chutils.OuterFuncs{chutils.OuterLowCardinality}},
 		Description: "file monthly data loaded from",
 		Legal:       chutils.NewLegalValues(),
 		Missing:     "!",
@@ -133,7 +133,7 @@ func Build() *chutils.TableDef {
 
 	fd := &chutils.FieldDef{
 		Name:        "lnID",
-		ChSpec:      chutils.ChField{chutils.ChString, 0, "", ""},
+		ChSpec:      chutils.ChField{Base: chutils.ChString},
 		Description: "Loan ID PYYQnXXXXXXX P=F or A YY=year, n=quarter",
 		Legal:       &chutils.LegalValues{},
 		Missing:     lnIDMiss,
@@ -141,13 +141,8 @@ func Build() *chutils.TableDef {
 	fds[0] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "month",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChDate,
-			Length:    0,
-			OuterFunc: "",
-			Format:    "200601",
-		},
+		Name:        "month",
+		ChSpec:      chutils.ChField{Base: chutils.ChDate, Length: 0, Format: "200601"},
 		Description: "month of data",
 		Legal:       &chutils.LegalValues{LowLimit: monthMin, HighLimit: monthMax},
 		Missing:     monthMiss,
@@ -155,13 +150,8 @@ func Build() *chutils.TableDef {
 	fds[1] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "upb",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChFloat,
-			Length:    32,
-			OuterFunc: "",
-			Format:    "",
-		},
+		Name:        "upb",
+		ChSpec:      chutils.ChField{Base: chutils.ChFloat, Length: 32},
 		Description: "unpaid balance",
 		Legal:       &chutils.LegalValues{LowLimit: upbMin, HighLimit: upbMax},
 		Missing:     upbMiss,
@@ -169,13 +159,8 @@ func Build() *chutils.TableDef {
 	fds[2] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "dqStat",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChFixedString,
-			Length:    3,
-			OuterFunc: "",
-			Format:    "",
-		},
+		Name:        "dqStat",
+		ChSpec:      chutils.ChField{Base: chutils.ChFixedString, Length: 3},
 		Description: "DQ status code: 0-100 months, RA (REO), !",
 		Legal:       &chutils.LegalValues{Levels: dqStatLvl},
 		Missing:     dqStatMiss,
@@ -183,13 +168,8 @@ func Build() *chutils.TableDef {
 	fds[3] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "age",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChInt,
-			Length:    32,
-			OuterFunc: "",
-			Format:    "",
-		},
+		Name:        "age",
+		ChSpec:      chutils.ChField{Base: chutils.ChInt, Length: 32},
 		Description: "loan age based on origination date",
 		Legal:       &chutils.LegalValues{LowLimit: ageMin, HighLimit: ageMax},
 		Missing:     ageMiss,
@@ -197,13 +177,8 @@ func Build() *chutils.TableDef {
 	fds[4] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "rTermLgl",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChInt,
-			Length:    32,
-			OuterFunc: "",
-			Format:    "",
-		},
+		Name:        "rTermLgl",
+		ChSpec:      chutils.ChField{Base: chutils.ChInt, Length: 32},
 		Description: "remaining legal term",
 		Legal:       &chutils.LegalValues{LowLimit: rTermLglMin, HighLimit: rTermLglMax},
 		Missing:     rTermLglMiss,
@@ -211,13 +186,8 @@ func Build() *chutils.TableDef {
 	fds[5] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "defectDt",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChDate,
-			Length:    0,
-			OuterFunc: "",
-			Format:    "200601",
-		},
+		Name:        "defectDt",
+		ChSpec:      chutils.ChField{Base: chutils.ChDate, Format: "200601"},
 		Description: "underwriting defect date",
 		Legal:       &chutils.LegalValues{LowLimit: defectDtMin, HighLimit: defectDtMax},
 		Missing:     defectDtMiss,
@@ -225,13 +195,8 @@ func Build() *chutils.TableDef {
 	fds[6] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "mod",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChFixedString,
-			Length:    1,
-			OuterFunc: "",
-			Format:    "",
-		},
+		Name:        "mod",
+		ChSpec:      chutils.ChField{Base: chutils.ChFixedString, Length: 1},
 		Description: "modification flag: Y, N, P (prior)",
 		Legal:       &chutils.LegalValues{Levels: modLvl},
 		Missing:     modMiss,
@@ -239,26 +204,16 @@ func Build() *chutils.TableDef {
 	fds[7] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "zb",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChFixedString,
-			Length:    2,
-			OuterFunc: "",
-			Format:    "",
-		},
+		Name:        "zb",
+		ChSpec:      chutils.ChField{Base: chutils.ChFixedString, Length: 2},
 		Description: "zero balance code: 01,02,03,96,09,15",
 		Legal:       &chutils.LegalValues{Levels: zbLvl},
 		Missing:     zbMiss}
 	fds[8] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "zbDt",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChDate,
-			Length:    0,
-			OuterFunc: "",
-			Format:    "200601",
-		},
+		Name:        "zbDt",
+		ChSpec:      chutils.ChField{Base: chutils.ChDate, Format: "200601"},
 		Description: "zero balance date",
 		Legal:       &chutils.LegalValues{LowLimit: zbDtMin, HighLimit: zbDtMax},
 		Missing:     zbDtMiss,
@@ -266,13 +221,8 @@ func Build() *chutils.TableDef {
 	fds[9] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "curRate",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChFloat,
-			Length:    32,
-			OuterFunc: "",
-			Format:    "",
-		},
+		Name:        "curRate",
+		ChSpec:      chutils.ChField{Base: chutils.ChFloat, Length: 32},
 		Description: "current note rate",
 		Legal:       &chutils.LegalValues{LowLimit: curRateMin, HighLimit: curRateMax},
 		Missing:     curRateMiss,
@@ -280,13 +230,8 @@ func Build() *chutils.TableDef {
 	fds[10] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "defrl",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChFloat,
-			Length:    32,
-			OuterFunc: "",
-			Format:    "",
-		},
+		Name:        "defrl",
+		ChSpec:      chutils.ChField{Base: chutils.ChFloat, Length: 32},
 		Description: "current deferral amount",
 		Legal:       &chutils.LegalValues{LowLimit: defrlMin, HighLimit: defrlMax},
 		Missing:     defrlMiss,
@@ -294,13 +239,8 @@ func Build() *chutils.TableDef {
 	fds[11] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "lpd",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChDate,
-			Length:    0,
-			OuterFunc: "",
-			Format:    "200601",
-		},
+		Name:        "lpd",
+		ChSpec:      chutils.ChField{Base: chutils.ChDate, Format: "200601"},
 		Description: "last pay date",
 		Legal:       &chutils.LegalValues{LowLimit: lpdMin, HighLimit: lpdMax},
 		Missing:     lpdMiss,
@@ -308,13 +248,8 @@ func Build() *chutils.TableDef {
 	fds[12] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "fclProMi",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChFloat,
-			Length:    32,
-			OuterFunc: "",
-			Format:    "",
-		},
+		Name:        "fclProMi",
+		ChSpec:      chutils.ChField{Base: chutils.ChFloat, Length: 32},
 		Description: "foreclosure credit enhancement proceeds",
 		Legal:       &chutils.LegalValues{LowLimit: fclProMiMin, HighLimit: fclProMiMax},
 		Missing:     fclProMiMiss,
@@ -322,13 +257,8 @@ func Build() *chutils.TableDef {
 	fds[13] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "fclProNet",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChFloat,
-			Length:    32,
-			OuterFunc: "",
-			Format:    "",
-		},
+		Name:        "fclProNet",
+		ChSpec:      chutils.ChField{Base: chutils.ChFloat, Length: 32},
 		Description: "foreclosure net proceeds",
 		Legal:       &chutils.LegalValues{LowLimit: fclProNetMin, HighLimit: fclProNetMax},
 		Missing:     fclProNetMiss,
@@ -336,13 +266,8 @@ func Build() *chutils.TableDef {
 	fds[14] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "fclProMw",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChFloat,
-			Length:    32,
-			OuterFunc: "",
-			Format:    "",
-		},
+		Name:        "fclProMw",
+		ChSpec:      chutils.ChField{Base: chutils.ChFloat, Length: 32},
 		Description: "foreclosure make whole proceeds",
 		Legal:       &chutils.LegalValues{LowLimit: fclProMwMin, HighLimit: fclProMwMax},
 		Missing:     fclProMwMiss,
@@ -350,13 +275,8 @@ func Build() *chutils.TableDef {
 	fds[15] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "fclExp",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChFloat,
-			Length:    32,
-			OuterFunc: "",
-			Format:    "",
-		},
+		Name:        "fclExp",
+		ChSpec:      chutils.ChField{Base: chutils.ChFloat, Length: 32},
 		Description: "total foreclosure expenses (values are negative)",
 		Legal:       &chutils.LegalValues{LowLimit: fclExpMin, HighLimit: fclExpMax},
 		Missing:     fclExpMiss,
@@ -364,13 +284,8 @@ func Build() *chutils.TableDef {
 	fds[16] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "fclLExp",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChFloat,
-			Length:    32,
-			OuterFunc: "",
-			Format:    "",
-		},
+		Name:        "fclLExp",
+		ChSpec:      chutils.ChField{Base: chutils.ChFloat, Length: 32},
 		Description: "foreclosure recovery legal expenses (values are negative)",
 		Legal:       &chutils.LegalValues{LowLimit: fclLExpMin, HighLimit: fclLExpMax},
 		Missing:     fclLExpMiss,
@@ -378,13 +293,8 @@ func Build() *chutils.TableDef {
 	fds[17] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "fclPExp",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChFloat,
-			Length:    32,
-			OuterFunc: "",
-			Format:    "",
-		},
+		Name:        "fclPExp",
+		ChSpec:      chutils.ChField{Base: chutils.ChFloat, Length: 32},
 		Description: "foreclosure property preservation expenses (values are negative)",
 		Legal:       &chutils.LegalValues{LowLimit: fclPExpMin, HighLimit: fclPExpMax},
 		Missing:     fclPExpMiss,
@@ -392,13 +302,8 @@ func Build() *chutils.TableDef {
 	fds[18] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "fclTaxes",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChFloat,
-			Length:    32,
-			OuterFunc: "",
-			Format:    "",
-		},
+		Name:        "fclTaxes",
+		ChSpec:      chutils.ChField{Base: chutils.ChFloat, Length: 32},
 		Description: "foreclosure property taxes and insurance (values are negative)",
 		Legal:       &chutils.LegalValues{LowLimit: fclTaxesMin, HighLimit: fclTaxesMax},
 		Missing:     fclTaxesMiss,
@@ -406,13 +311,8 @@ func Build() *chutils.TableDef {
 	fds[19] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "fclMExp",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChFloat,
-			Length:    32,
-			OuterFunc: "",
-			Format:    "",
-		},
+		Name:        "fclMExp",
+		ChSpec:      chutils.ChField{Base: chutils.ChFloat, Length: 32},
 		Description: "foreclosure misc expenses (values are negative)",
 		Legal:       &chutils.LegalValues{LowLimit: fclMExpMin, HighLimit: fclMExpMax},
 		Missing:     fclMExpMiss,
@@ -420,13 +320,8 @@ func Build() *chutils.TableDef {
 	fds[20] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "fclLoss",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChFloat,
-			Length:    32,
-			OuterFunc: "",
-			Format:    "",
-		},
+		Name:        "fclLoss",
+		ChSpec:      chutils.ChField{Base: chutils.ChFloat, Length: 32},
 		Description: "foreclosure loss amount (a loss is a negative value)",
 		Legal:       &chutils.LegalValues{LowLimit: fclLossMin, HighLimit: fclLossMax},
 		Missing:     fclLossMiss,
@@ -434,13 +329,8 @@ func Build() *chutils.TableDef {
 	fds[21] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "modTLoss",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChFloat,
-			Length:    32,
-			OuterFunc: "",
-			Format:    "",
-		},
+		Name:        "modTLoss",
+		ChSpec:      chutils.ChField{Base: chutils.ChFloat, Length: 32},
 		Description: "total modification loss",
 		Legal:       &chutils.LegalValues{LowLimit: modTLossMin, HighLimit: modTLossMax},
 		Missing:     modTLossMiss,
@@ -448,13 +338,8 @@ func Build() *chutils.TableDef {
 	fds[22] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "stepMod",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChFixedString,
-			Length:    1,
-			OuterFunc: "",
-			Format:    "",
-		},
+		Name:        "stepMod",
+		ChSpec:      chutils.ChField{Base: chutils.ChFixedString, Length: 1},
 		Description: "step mod flag: Y, N, !",
 		Legal:       &chutils.LegalValues{Levels: stepModLvl},
 		Missing:     stepModMiss,
@@ -462,13 +347,8 @@ func Build() *chutils.TableDef {
 	fds[23] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "payPl",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChFixedString,
-			Length:    1,
-			OuterFunc: "",
-			Format:    "",
-		},
+		Name:        "payPl",
+		ChSpec:      chutils.ChField{Base: chutils.ChFixedString, Length: 1},
 		Description: "pay plan: Y (yes), P (prior), N (No)",
 		Legal:       &chutils.LegalValues{Levels: payPlLvl},
 		Missing:     payPlMiss,
@@ -476,13 +356,8 @@ func Build() *chutils.TableDef {
 	fds[24] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "eLTV",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChInt,
-			Length:    32,
-			OuterFunc: "",
-			Format:    "",
-		},
+		Name:        "eLTV",
+		ChSpec:      chutils.ChField{Base: chutils.ChInt, Length: 32},
 		Description: "estimated LTV based on Freddie AVM",
 		Legal:       &chutils.LegalValues{LowLimit: eLTVMin, HighLimit: eLTVMax},
 		Missing:     eLTVMiss,
@@ -490,13 +365,8 @@ func Build() *chutils.TableDef {
 	fds[25] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "zbUPB",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChFloat,
-			Length:    32,
-			OuterFunc: "",
-			Format:    "",
-		},
+		Name:        "zbUPB",
+		ChSpec:      chutils.ChField{Base: chutils.ChFloat, Length: 32},
 		Description: "UPB just prior to zero balance",
 		Legal:       &chutils.LegalValues{LowLimit: zbUPBMin, HighLimit: zbUPBMax},
 		Missing:     zbUPBMiss,
@@ -504,13 +374,8 @@ func Build() *chutils.TableDef {
 	fds[26] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "accrInt",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChFloat,
-			Length:    32,
-			OuterFunc: "",
-			Format:    "",
-		},
+		Name:        "accrInt",
+		ChSpec:      chutils.ChField{Base: chutils.ChFloat, Length: 32},
 		Description: "delinquent accrued interest",
 		Legal:       &chutils.LegalValues{LowLimit: accrIntMin, HighLimit: accrIntMax},
 		Missing:     accrIntMiss,
@@ -518,13 +383,8 @@ func Build() *chutils.TableDef {
 	fds[27] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "dqDis",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChFixedString,
-			Length:    1,
-			OuterFunc: "",
-			Format:    "",
-		},
+		Name:        "dqDis",
+		ChSpec:      chutils.ChField{Base: chutils.ChFixedString, Length: 1},
 		Description: "dq due to disaster: Y, N",
 		Legal:       &chutils.LegalValues{Levels: dqDisLvl},
 		Missing:     dqDisMiss,
@@ -532,13 +392,8 @@ func Build() *chutils.TableDef {
 	fds[28] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "bap",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChFixedString,
-			Length:    1,
-			OuterFunc: "",
-			Format:    "",
-		},
+		Name:        "bap",
+		ChSpec:      chutils.ChField{Base: chutils.ChFixedString, Length: 1},
 		Description: "borrower assistant plan: F (forebearance), R (repayment), T (trial) ! (NA)",
 		Legal:       &chutils.LegalValues{Levels: bapLvl},
 		Missing:     bapMiss,
@@ -546,13 +401,8 @@ func Build() *chutils.TableDef {
 	fds[29] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "modCLoss",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChFloat,
-			Length:    32,
-			OuterFunc: "",
-			Format:    "",
-		},
+		Name:        "modCLoss",
+		ChSpec:      chutils.ChField{Base: chutils.ChFloat, Length: 32},
 		Description: "current period modification loss",
 		Legal:       &chutils.LegalValues{LowLimit: modCLossMin, HighLimit: modCLossMax},
 		Missing:     modCLossMiss,
@@ -560,13 +410,8 @@ func Build() *chutils.TableDef {
 	fds[30] = fd
 
 	fd = &chutils.FieldDef{
-		Name: "intUPB",
-		ChSpec: chutils.ChField{
-			Base:      chutils.ChFloat,
-			Length:    32,
-			OuterFunc: "",
-			Format:    "",
-		},
+		Name:        "intUPB",
+		ChSpec:      chutils.ChField{Base: chutils.ChFloat, Length: 32},
 		Description: "interest bearing UPB",
 		Legal:       &chutils.LegalValues{LowLimit: intUPBMin, HighLimit: intUPBMax},
 		Missing:     intUPBMiss,

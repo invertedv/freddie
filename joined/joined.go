@@ -42,7 +42,7 @@ FROM(
         FROM (    
             SELECT
                 lnID,
-                arrayJoin(splitByChar(';', valMonthly)) AS v
+                arrayJoin(splitByChar(';', qaMonthly)) AS v
             FROM
                 aaa))
      GROUP BY lnID, field
@@ -84,7 +84,7 @@ SELECT
     arrayElement(m.modTLoss1, length(m.modMonth)) AS modTLoss,
     arrayElement(m.modCLoss1, length(m.modMonth)) AS modCLoss,
     arrayElement(m.stepMod1, length(m.modMonth)) AS stepMod,
-    v.x AS valMonthly
+    v.x AS qaMonthly
 FROM
     bbb AS s
 JOIN (
@@ -147,10 +147,10 @@ ON s.lnID = v.lnID
 			fd.Description = "month of modification"
 		case "fclMonth":
 			fd.Description = "month of foreclosure resolution"
-		case "valMonthly":
-			fd.ChSpec.OuterFunc = "LowCardinality"
+		case "qaMonthly":
+			fd.ChSpec.Funcs = chutils.OuterFuncs{chutils.OuterLowCardinality}
 		case "valStatic":
-			fd.ChSpec.OuterFunc = "LowCardinality"
+			fd.ChSpec.Funcs = chutils.OuterFuncs{chutils.OuterLowCardinality}
 		}
 	}
 
