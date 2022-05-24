@@ -13,6 +13,47 @@ import (
 // TableDef is the *chutils.TableDef of the nested reader
 var TableDef *chutils.TableDef
 
+// LoadRaw loads the raw monthly series
+func LoadRaw(filen string, table string, create bool, con *chutils.Connect) (err error) {
+	fileName = filen
+	// build initial reader
+	f, err := os.Open(fileName)
+	if err != nil {
+		return err
+	}
+	rdr := file.NewReader(fileName, '|', '\n', '"', 0, 0, 0, f, 6000000)
+	rdr.Skip = 0
+	defer rdr.Close()
+
+	rdr.SetTableSpec(Build())
+	if e := rdr.TableSpec().Check(); e != nil {
+		return e
+	}
+
+	newCalcs := make([]nested.NewCalcFn, 0)
+	newCalcs = append(newCalcs, vField, fField)
+
+	nrdr, err := nested.NewReader(rdr, xtraFields(), newCalcs)
+	TableDef = nrdr.TableSpec()
+
+	if create {
+		if err = nrdr.TableSpec().Create(con, table); err != nil {
+			return err
+		}
+	}
+
+	wrtr := s.NewWriter(table, con)
+	if err = chutils.Export(nrdr, wrtr, 400000); err != nil {
+		return
+	}
+
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	return nil
+}
+
 // gives the validation results for each field -- 0 = pass, 1 = value fail, 2 = type fail
 func vField(td *chutils.TableDef, data chutils.Row, valid chutils.Valid, validate bool) (interface{}, error) {
 	res := make([]byte, 0)
@@ -58,47 +99,6 @@ func xtraFields() (fds []*chutils.FieldDef) {
 	}
 	fds = []*chutils.FieldDef{vfd, ffd}
 	return
-}
-
-// LoadRaw loads the raw monthly series
-func LoadRaw(filen string, table string, create bool, con *chutils.Connect) (err error) {
-	fileName = filen
-	// build initial reader
-	f, err := os.Open(fileName)
-	if err != nil {
-		return err
-	}
-	rdr := file.NewReader(fileName, '|', '\n', '"', 0, 0, 0, f, 6000000)
-	rdr.Skip = 0
-	defer rdr.Close()
-
-	rdr.SetTableSpec(Build())
-	if e := rdr.TableSpec().Check(); e != nil {
-		return e
-	}
-
-	newCalcs := make([]nested.NewCalcFn, 0)
-	newCalcs = append(newCalcs, vField, fField)
-
-	nrdr, err := nested.NewReader(rdr, xtraFields(), newCalcs)
-	TableDef = nrdr.TableSpec()
-
-	if create {
-		if err = nrdr.TableSpec().Create(con, table); err != nil {
-			return err
-		}
-	}
-
-	wrtr := s.NewWriter(table, con)
-	if err = chutils.Export(nrdr, wrtr, 400000); err != nil {
-		return
-	}
-
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	return nil
 }
 
 // Build builds the TableDef for the static field files

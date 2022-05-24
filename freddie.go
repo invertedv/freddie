@@ -75,19 +75,25 @@ func main() {
 	start := time.Now()
 	createTable := *create == "Y" || *create == "y"
 	for ind, k := range keys {
+		/*
+			staticFile := "/mnt/drive3/data/freddie_data/historical_data_2021Q2.txt"
+			monthlyFile := "/mnt/drive3/data/freddie_data/historical_data_time_2021Q2.txt"
+			if e := joined.Load(monthlyFile, staticFile, *table, "tmp", createTable, con); e != nil {
+				log.Fatalln(e)
+			}
+			_ = k
+			if ind == 1 {
+				break
+			}
+		*/
 
-		staticFile := "/mnt/drive3/data/freddie_data/historical_data_2000Q1.txt"
-		monthlyFile := "/mnt/drive3/data/freddie_data/historical_data_time_2000Q1.txt"
-		if e := joined.Load(monthlyFile, staticFile, *table, "tmp", createTable, con); e != nil {
+		if e := joined.Load(fileList[k].Monthly, fileList[k].Static, *table, "tmp", createTable, con); e != nil {
 			log.Fatalln(e)
 		}
 
-		//		if e := joined.Load(fileList[k].Monthly, fileList[k].Static, *table, "tmp", createTable, con); e != nil {
-		//			log.Fatalln(e)
-		//		}
 		createTable = false
 		fmt.Printf("Done with quarter %s. %d out of %d \n", k, ind+1, len(keys))
-		break
+
 	}
-	fmt.Println("elapsed time", time.Since(start), "total", (48000/117.)*time.Since(start).Hours())
+	fmt.Println("elapsed time", time.Since(start))
 }

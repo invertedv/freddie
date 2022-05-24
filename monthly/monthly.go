@@ -13,6 +13,61 @@ import (
 
 var TableDef *chutils.TableDef
 
+// LoadRaw loads the raw monthly series
+func LoadRaw(fileN string, table string, create bool, nConcur int, con *chutils.Connect) (err error) {
+	fileName = fileN
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	f, err := os.Open(fileName)
+	if err != nil {
+		return err
+	}
+	rdr := file.NewReader(fileName, '|', '\n', '"', 0, 0, 0, f, 6000000)
+	rdr.Skip = 0
+	defer rdr.Close()
+	rdr.SetTableSpec(Build())
+	if e := rdr.TableSpec().Check(); e != nil {
+		return e
+	}
+
+	// build slice of readers
+	rdrs, err := file.Rdrs(rdr, nConcur)
+	if err != nil {
+		return
+	}
+
+	var wrtrs []chutils.Output
+	if wrtrs, err = s.Wrtrs(table, nConcur, con); err != nil {
+		return
+	}
+
+	newCalcs := make([]nested.NewCalcFn, 0)
+	newCalcs = append(newCalcs, vField, fField)
+
+	rdrsn := make([]chutils.Input, 0)
+	for j, r := range rdrs {
+		defer r.Close()
+		defer wrtrs[j].Close()
+
+		rn, e := nested.NewReader(r, xtraFields(), newCalcs)
+		if e != nil {
+			return e
+		}
+		rdrsn = append(rdrsn, rn)
+		if j == 0 && create {
+			if err = rn.TableSpec().Create(con, table); err != nil {
+				return err
+			}
+		}
+	}
+	TableDef = rdrsn[0].TableSpec()
+
+	err = chutils.Concur(12, rdrsn, wrtrs, 400000)
+	return
+}
+
 // gives the validation results for each field -- 0 = pass, 1 = value fail, 2 = type fail
 func vField(td *chutils.TableDef, data chutils.Row, valid chutils.Valid, validate bool) (interface{}, error) {
 	res := make([]byte, 0)
@@ -28,14 +83,6 @@ func vField(td *chutils.TableDef, data chutils.Row, valid chutils.Valid, validat
 	// delete trailing ;
 	res[len(res)-1] = ' '
 	return string(res), nil
-}
-
-// fileName is global since used as a closure to fField
-var fileName string
-
-// fField adds the file name data comes from to output table
-func fField(td *chutils.TableDef, data chutils.Row, valid chutils.Valid, validate bool) (interface{}, error) {
-	return fileName, nil
 }
 
 func xtraFields() (fds []*chutils.FieldDef) {
@@ -57,6 +104,14 @@ func xtraFields() (fds []*chutils.FieldDef) {
 	}
 	fds = []*chutils.FieldDef{vfd, ffd}
 	return
+}
+
+// fileName is global since used as a closure to fField
+var fileName string
+
+// fField adds the file name data comes from to output table
+func fField(td *chutils.TableDef, data chutils.Row, valid chutils.Valid, validate bool) (interface{}, error) {
+	return fileName, nil
 }
 
 func Build() *chutils.TableDef {
@@ -418,62 +473,4 @@ func Build() *chutils.TableDef {
 	}
 	fds[31] = fd
 	return chutils.NewTableDef("lnID, month", chutils.MergeTree, fds)
-}
-
-// LoadRaw loads the raw monthly series
-func LoadRaw(fileN string, table string, create bool, nConcur int, con *chutils.Connect) (err error) {
-	fileName = fileN
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	f, err := os.Open(fileName)
-	if err != nil {
-		return err
-	}
-	rdr := file.NewReader(fileName, '|', '\n', '"', 0, 0, 0, f, 6000000)
-	rdr.Skip = 0
-	defer rdr.Close()
-	rdr.SetTableSpec(Build())
-	if e := rdr.TableSpec().Check(); e != nil {
-		return e
-	}
-
-	// build slice of readers
-	rdrs, err := file.Rdrs(rdr, nConcur)
-	if err != nil {
-		return
-	}
-
-	var wrtrs []chutils.Output
-	if wrtrs, err = s.Wrtrs(table, nConcur, con); err != nil {
-		return
-	}
-
-	newCalcs := make([]nested.NewCalcFn, 0)
-	newCalcs = append(newCalcs, vField, fField)
-
-	rdrsn := make([]chutils.Input, 0)
-	for j, r := range rdrs {
-		defer r.Close()
-		defer wrtrs[j].Close()
-
-		rn, e := nested.NewReader(r, xtraFields(), newCalcs)
-		if e != nil {
-			return e
-		}
-		rdrsn = append(rdrsn, rn)
-		if j == 0 && create {
-			if err = rn.TableSpec().Create(con, table); err != nil {
-				return err
-			}
-		}
-	}
-	TableDef = rdrsn[0].TableSpec()
-
-	start := time.Now()
-	err = chutils.Concur(12, rdrsn, wrtrs, 400000)
-	elapsed := time.Since(start)
-	fmt.Println("Elapsed time", elapsed.Seconds(), "seconds")
-	return
 }

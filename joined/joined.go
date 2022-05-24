@@ -6,17 +6,61 @@ import (
 	mon "github.com/invertedv/freddie/monthly"
 	stat "github.com/invertedv/freddie/static"
 	"log"
+	"strings"
 )
 
 func Load(monthly string, static string, table string, tmpDB string, create bool, con *chutils.Connect) error {
-	if err := stat.LoadRaw(static, "bbb", true, con); err != nil {
+	tmpStatic := tmpDB + ".static"
+	tmpMonthly := tmpDB + ".monthly"
+	if err := stat.LoadRaw(static, tmpStatic, true, con); err != nil {
 		log.Fatalln(err)
 	}
-	if err := mon.LoadRaw(monthly, "aaa", true, 12, con); err != nil {
+	if err := mon.LoadRaw(monthly, tmpMonthly, true, 12, con); err != nil {
 		log.Fatalln(err)
 	}
 
-	qry := `
+	qryUse := strings.Replace(strings.Replace(qry, "tmpMonthly", tmpMonthly, -1), "tmpStatic", tmpStatic, -1)
+	srdr := s.NewReader(qryUse, con)
+	if e := srdr.Init("lnID", chutils.MergeTree); e != nil {
+		log.Fatalln(e)
+	}
+	for _, fd := range srdr.TableSpec().FieldDefs {
+		if _, fd1, e := stat.TableDef.Get(fd.Name); e == nil {
+			fd.Description = fd1.Description
+		}
+		if _, fd1, e := mon.TableDef.Get(fd.Name); e == nil {
+			fd.Description = fd1.Description
+		}
+		switch fd.Name {
+		case "modMonth":
+			fd.Description = "month of modification"
+		case "fclMonth":
+			fd.Description = "month of foreclosure resolution"
+		case "qaMonthly":
+			fd.ChSpec.Funcs = chutils.OuterFuncs{chutils.OuterLowCardinality}
+		case "valStatic":
+			fd.ChSpec.Funcs = chutils.OuterFuncs{chutils.OuterLowCardinality}
+		}
+	}
+
+	if e := srdr.TableSpec().Nest("monthly", "month", "bap"); e != nil {
+		log.Fatalln(e)
+	}
+
+	srdr.Name = table
+	if create {
+		if e := srdr.TableSpec().Create(con, srdr.Name); e != nil {
+			log.Fatalln(e)
+		}
+	}
+	if e := srdr.Insert(); e != nil {
+		log.Fatalln(e)
+	}
+
+	return nil
+}
+
+const qry = `
 WITH v AS (
 SELECT
     lnID,
@@ -41,7 +85,7 @@ FROM(
                 lnID,
                 arrayJoin(splitByChar(';', qaMonthly)) AS v
             FROM
-                aaa))
+                tmpMonthly))
      GROUP BY lnID, field
      ORDER BY lnID, field)
 GROUP BY lnID))
@@ -83,7 +127,7 @@ SELECT
     arrayElement(m.stepMod1, length(m.modMonth)) AS stepMod,
     v.x AS qaMonthly
 FROM
-    bbb AS s
+    tmpStatic AS s
 JOIN (
     SELECT
         lnID,
@@ -122,48 +166,9 @@ JOIN (
         groupArray(if(modTLoss >= 0.0 or modCLoss >= 0.0 or stepMod = 'Y' , modCLoss, Null)) AS modCLoss1,
         groupArray(if(modTLoss >= 0.0 or modCLoss >= 0.0 or stepMod = 'Y' , stepMod, Null)) AS stepMod1
     FROM
-        aaa
+        tmpMonthly AS aaa
     GROUP BY lnID) AS m
 ON s.lnID = m.lnID
 JOIN v
 ON s.lnID = v.lnID
 `
-	srdr := s.NewReader(qry, con)
-	if e := srdr.Init("lnID", chutils.MergeTree); e != nil {
-		log.Fatalln(e)
-	}
-	for _, fd := range srdr.TableSpec().FieldDefs {
-		if _, fd1, e := stat.TableDef.Get(fd.Name); e == nil {
-			fd.Description = fd1.Description
-		}
-		if _, fd1, e := mon.TableDef.Get(fd.Name); e == nil {
-			fd.Description = fd1.Description
-		}
-		switch fd.Name {
-		case "modMonth":
-			fd.Description = "month of modification"
-		case "fclMonth":
-			fd.Description = "month of foreclosure resolution"
-		case "qaMonthly":
-			fd.ChSpec.Funcs = chutils.OuterFuncs{chutils.OuterLowCardinality}
-		case "valStatic":
-			fd.ChSpec.Funcs = chutils.OuterFuncs{chutils.OuterLowCardinality}
-		}
-	}
-
-	if e := srdr.TableSpec().Nest("monthly", "month", "bap"); e != nil {
-		log.Fatalln(e)
-	}
-
-	srdr.Name = "ddd"
-	if create {
-		if e := srdr.TableSpec().Create(con, srdr.Name); e != nil {
-			log.Fatalln(e)
-		}
-	}
-	if e := srdr.Insert(); e != nil {
-		log.Fatalln(e)
-	}
-
-	return nil
-}
