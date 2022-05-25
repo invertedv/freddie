@@ -148,16 +148,18 @@ func Build() *chutils.TableDef {
 
 		lpdMin, lpdMax, lpdMiss = minDt, maxDt, missDt
 
-		fclProMiMin, fclProMiMax, fclProMiMiss    = float32(0.0), float32(500000.0), float32(-1.0)
-		fclProNetMin, fclProNetMax, fclProNetMiss = float32(0.0), float32(2000000.0), float32(-1.0)
-		fclProMwMin, fclProMwMax, fclProMwMiss    = float32(0.0), float32(2000000.0), float32(-1.0)
-		fclExpMin, fclExpMax, fclExpMiss          = float32(-200000.0), float32(0.0), float32(1.0)
-		fclLExpMin, fclLExpMax, fclLExpMiss       = float32(-120000.0), float32(0.0), float32(1.0)
-		fclPExpMin, fclPExpMax, fclPExpMiss       = float32(-120000.0), float32(0.0), float32(1.0)
-		fclTaxesMin, fclTaxesMax, fclTaxesMiss    = float32(-300000.0), float32(0.0), float32(1.0)
-		fclMExpMin, fclMExpMax, fclMExpMiss       = float32(0.0), float32(100000.0), float32(1.0)
-		fclLossMin, fclLossMax, fclLossMiss       = float32(-1000000.0), float32(200000.0), float32(100000000.0)
-		modTLossMin, modTLossMax, modTLossMiss    = float32(0.0), float32(150000.0), float32(-1.0)
+		fclProMiMin, fclProMiMax, fclProMiMiss    = float32(-2000000.0), float32(2000000.0), float32(0.0)
+		fclProNetMin, fclProNetMax, fclProNetMiss = float32(-2000000.0), float32(2000000.0), float32(0.0)
+		fclProMwMin, fclProMwMax, fclProMwMiss    = float32(-2000000.0), float32(2000000.0), float32(0.0)
+
+		fclExpMin, fclExpMax, fclExpMiss       = float32(-2000000.0), float32(2000000.0), float32(0.0)
+		fclLExpMin, fclLExpMax, fclLExpMiss    = float32(-2000000.0), float32(2000000.0), float32(0.0)
+		fclPExpMin, fclPExpMax, fclPExpMiss    = float32(-2000000.0), float32(2000000.0), float32(0.0)
+		fclTaxesMin, fclTaxesMax, fclTaxesMiss = float32(-2000000.0), float32(2000000.0), float32(0.0)
+
+		fclMExpMin, fclMExpMax, fclMExpMiss    = float32(-2000000.0), float32(2000000.0), float32(0.0)
+		fclLossMin, fclLossMax, fclLossMiss    = float32(-2000000.0), float32(2000000.0), float32(0.0)
+		modTLossMin, modTLossMax, modTLossMiss = float32(-2000000.0), float32(2000000.0), float32(0.0)
 
 		stepModMiss = "N"
 		stepModLvl  = []string{"Y", "N"}
@@ -175,7 +177,7 @@ func Build() *chutils.TableDef {
 		bapMiss = "!"
 		bapLvl  = []string{"F", "R", "T"}
 
-		modCLossMin, modCLossMax, modCLossMiss = float32(0.0), float32(150000.0), float32(-1.0)
+		modCLossMin, modCLossMax, modCLossMiss = float32(-150000.0), float32(150000.0), float32(0.0)
 		intUPBMin, intUPBMax, intUPBMiss       = float32(0.0), float32(2000000.0), float32(-1.0)
 	)
 

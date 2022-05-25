@@ -47,6 +47,10 @@ func Load(monthly string, static string, table string, tmpDB string, create bool
 		log.Fatalln(e)
 	}
 
+	if e := srdr.TableSpec().Nest("mod", "modMonth", "stepMod"); e != nil {
+		log.Fatalln(e)
+	}
+
 	srdr.Name = table
 	if create {
 		if e := srdr.TableSpec().Create(con, srdr.Name); e != nil {
@@ -111,20 +115,20 @@ SELECT
     m.dqDis,
 
     arrayElement(m.fclMonth, length(m.fclMonth)) AS fclMonth,
-    arrayElement(m.fclProNet, length(m.fclMonth)) AS fclProNet,
-    arrayElement(m.fclProMi, length(m.fclMonth)) AS fclProMi,
-    arrayElement(m.fclProMw, length(m.fclMonth)) AS fclProMw,
-    arrayElement(m.fclExp, length(m.fclMonth)) AS fclExp,
-    arrayElement(m.fclLExp, length(m.fclMonth)) AS fclLExp,
-    arrayElement(m.fclPExp, length(m.fclMonth)) AS fclPExp,
-    arrayElement(m.fclTaxes, length(m.fclMonth)) AS fclTaxes,
-    arrayElement(m.fclMExp, length(m.fclMonth)) AS fclMExp,
+    arrayElement(m.fclProNet1, length(m.fclMonth)) AS fclProNet,
+    arrayElement(m.fclProMi1, length(m.fclMonth)) AS fclProMi,
+    arrayElement(m.fclProMw1, length(m.fclMonth)) AS fclProMw,
+    arrayElement(m.fclExp1, length(m.fclMonth)) AS fclExp,
+    arrayElement(m.fclLExp1, length(m.fclMonth)) AS fclLExp,
+    arrayElement(m.fclPExp1, length(m.fclMonth)) AS fclPExp,
+    arrayElement(m.fclTaxes1, length(m.fclMonth)) AS fclTaxes,
+    arrayElement(m.fclMExp1, length(m.fclMonth)) AS fclMExp,
     arrayElement(m.fclLoss1, length(m.fclMonth)) AS fclLoss,
 
-    arrayElement(m.modMonth, length(m.modMonth)) AS modMonth,
     arrayElement(m.modTLoss1, length(m.modMonth)) AS modTLoss,
-    arrayElement(m.modCLoss1, length(m.modMonth)) AS modCLoss,
-    arrayElement(m.stepMod1, length(m.modMonth)) AS stepMod,
+    m.modMonth,
+    m.modCLoss1 AS modCLoss,
+    m.stepMod1 AS stepMod,
     v.x AS qaMonthly
 FROM
     tmpStatic AS s
@@ -150,21 +154,21 @@ JOIN (
         max(fileMonthly) AS fileMonthly,
 
         groupArray(dqDis = 'Y' ? aaa.month : Null) AS dqDis,
-        groupArray(if(fclLoss > 1000000.0, Null, aaa.month)) AS fclMonth,
-        groupArray(if(fclLoss > 1000000.0, Null, fclProNet)) AS fclProNet,
-        groupArray(if(fclLoss > 1000000.0, Null, fclProMi)) AS fclProMi,
-        groupArray(if(fclLoss > 1000000.0, Null, fclProMw)) AS fclProMw,
-        groupArray(if(fclLoss > 1000000.0, Null, fclExp)) AS fclExp,
-        groupArray(if(fclLoss > 1000000.0, Null, fclLExp)) AS fclLExp,
-        groupArray(if(fclLoss > 1000000.0, Null, fclPExp)) AS fclPExp,
-        groupArray(if(fclLoss > 1000000.0, Null, fclTaxes)) AS fclTaxes,
-        groupArray(if(fclLoss > 1000000.0, Null, fclMExp)) AS fclMExp,
-        groupArray(if(fclLoss > 1000000.0, Null, fclLoss)) AS fclLoss1,
+        groupArray(if(abs(fclLoss) + abs(fclExp) + abs(fclProNet+fclProMi+fclProMw) = 0.0 , Null, aaa.month)) AS fclMonth,
+        groupArray(if(abs(fclLoss) + abs(fclExp) + abs(fclProNet+fclProMi+fclProMw) = 0.0, Null, fclProNet)) AS fclProNet1,
+        groupArray(if(abs(fclLoss) + abs(fclExp) + abs(fclProNet+fclProMi+fclProMw) = 0.0, Null, fclProMi)) AS fclProMi1,
+        groupArray(if(abs(fclLoss) + abs(fclExp) + abs(fclProNet+fclProMi+fclProMw) = 0.0, Null, fclProMw)) AS fclProMw1,
+        groupArray(if(abs(fclLoss) + abs(fclExp) + abs(fclProNet+fclProMi+fclProMw) = 0.0, Null, fclExp)) AS fclExp1,
+        groupArray(if(abs(fclLoss) + abs(fclExp) + abs(fclProNet+fclProMi+fclProMw) = 0.0, Null, fclLExp)) AS fclLExp1,
+        groupArray(if(abs(fclLoss) + abs(fclExp) + abs(fclProNet+fclProMi+fclProMw) = 0.0, Null, fclPExp)) AS fclPExp1,
+        groupArray(if(abs(fclLoss) + abs(fclExp) + abs(fclProNet+fclProMi+fclProMw) = 0.0, Null, fclTaxes)) AS fclTaxes1,
+        groupArray(if(abs(fclLoss) + abs(fclExp) + abs(fclProNet+fclProMi+fclProMw) = 0.0, Null, fclMExp)) AS fclMExp1,
+        groupArray(if(abs(fclLoss) + abs(fclExp) + abs(fclProNet+fclProMi+fclProMw) = 0.0, Null, fclLoss)) AS fclLoss1,
 
-        groupArray(if(modTLoss >= 0.0 or modCLoss >= 0.0 or stepMod = 'Y' , aaa.month, Null)) AS modMonth,
-        groupArray(if(modTLoss >= 0.0 or modCLoss >= 0.0 or stepMod = 'Y' , modTLoss, Null)) AS modTLoss1,
-        groupArray(if(modTLoss >= 0.0 or modCLoss >= 0.0 or stepMod = 'Y' , modCLoss, Null)) AS modCLoss1,
-        groupArray(if(modTLoss >= 0.0 or modCLoss >= 0.0 or stepMod = 'Y' , stepMod, Null)) AS stepMod1
+        groupArray(if(modTLoss != 0.0 or modCLoss != 0.0 or stepMod = 'Y' , aaa.month, Null)) AS modMonth,
+        groupArray(if(modTLoss != 0.0 or modCLoss != 0.0 or stepMod = 'Y' , modTLoss, Null)) AS modTLoss1,
+        groupArray(if(modTLoss != 0.0 or modCLoss != 0.0 or stepMod = 'Y' , modCLoss, Null)) AS modCLoss1,
+        groupArray(if(modTLoss != 0.0 or modCLoss != 0.0 or stepMod = 'Y' , stepMod, Null)) AS stepMod1
     FROM
         tmpMonthly AS aaa
     GROUP BY lnID) AS m
