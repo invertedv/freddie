@@ -98,12 +98,16 @@ SELECT
     m.month,
     m.upb,
     m.dqStat,
+    m.dq,
+    m.reo,
     m.age,
     m.rTermLgl,
     m.mod,
     m.zb,
     m.curRate,
     m.defrl,
+    m.payPl,
+    m.dqDis,
     m.intUPB,
     m.bap,
 
@@ -112,7 +116,6 @@ SELECT
     m.zbDt,
     m.zbUPB,
     m.fileMonthly,
-    m.dqDis,
 
     arrayElement(m.fclMonth, length(m.fclMonth)) AS fclMonth,
     arrayElement(m.fclProNet1, length(m.fclMonth)) AS fclProNet,
@@ -138,6 +141,8 @@ JOIN (
         groupArray(month) AS month,
         groupArray(upb) AS upb,
         groupArray(dqStat) AS dqStat,
+        groupArray(dq) AS dq,
+        groupArray(reo) AS reo,
         groupArray(age) AS age,
         groupArray(rTermLgl) AS rTermLgl,
         groupArray(mod) AS mod,
@@ -145,6 +150,8 @@ JOIN (
         groupArray(curRate) AS curRate,
         groupArray(defrl) AS defrl,
         groupArray(intUPB) AS intUPB,
+        groupArray(dqDis) AS dqDis,
+        groupArray(payPl) AS payPl,
         groupArray(bap) AS bap,
 
         max(lpd) AS lpd,
@@ -153,7 +160,7 @@ JOIN (
         max(zbUPB) AS zbUPB,
         max(fileMonthly) AS fileMonthly,
 
-        groupArray(dqDis = 'Y' ? aaa.month : Null) AS dqDis,
+//        groupArray(dqDis = 'Y' ? aaa.month : Null) AS dqDis,
         groupArray(if(abs(fclLoss) + abs(fclExp) + abs(fclProNet+fclProMi+fclProMw) = 0.0 , Null, aaa.month)) AS fclMonth,
         groupArray(if(abs(fclLoss) + abs(fclExp) + abs(fclProNet+fclProMi+fclProMw) = 0.0, Null, fclProNet)) AS fclProNet1,
         groupArray(if(abs(fclLoss) + abs(fclExp) + abs(fclProNet+fclProMi+fclProMw) = 0.0, Null, fclProMi)) AS fclProMi1,
@@ -176,3 +183,5 @@ ON s.lnID = m.lnID
 JOIN v
 ON s.lnID = v.lnID
 `
+
+//TODO - change defers to funcs with _ = xyz.Close() to get it to stop complaining
