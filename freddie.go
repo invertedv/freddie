@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/invertedv/chutils"
 	"github.com/invertedv/freddie/joined"
 	"log"
@@ -35,7 +36,10 @@ func main() {
 	if (*srcDir)[len(*srcDir)-1] != '/' {
 		*srcDir += "/"
 	}
-	con, err := chutils.NewConnect(*host, *user, *password, 40000000000)
+	con, err := chutils.NewConnect(*host, *user, *password, clickhouse.Settings{
+		"max_memory_usage":                   40000000000,
+		"max_bytes_before_external_group_by": 20000000000,
+	})
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -75,21 +79,22 @@ func main() {
 	start := time.Now()
 	createTable := *create == "Y" || *create == "y"
 	for ind, k := range keys {
-		/*
-			staticFile := "/mnt/drive3/data/freddie_data/historical_data_2014Q4.txt"
-			monthlyFile := "/mnt/drive3/data/freddie_data/historical_data_time_2014Q4.txt"
-			if e := joined.Load(monthlyFile, staticFile, *table, "tmp", createTable, con); e != nil {
-				log.Fatalln(e)
-			}
-			_ = k
-			if ind == 0 {
-				break
-			}
-		*/
 
-		if e := joined.Load(fileList[k].Monthly, fileList[k].Static, *table, "tmp", createTable, con); e != nil {
+		staticFile := "/mnt/drive3/data/freddie_data/historical_data_2001Q1.txt"
+		monthlyFile := "/mnt/drive3/data/freddie_data/historical_data_time_2001Q1.txt" //3Q3
+		if e := joined.Load(monthlyFile, staticFile, *table, "tmp", createTable, con); e != nil {
 			log.Fatalln(e)
 		}
+		_ = k
+		if ind == 0 {
+			break
+		}
+		/*
+			if e := joined.Load(fileList[k].Monthly, fileList[k].Static, *table, "tmp", createTable, con); e != nil {
+				log.Fatalln(e)
+			}
+
+		*/
 
 		createTable = false
 		fmt.Printf("Done with quarter %s. %d out of %d \n", k, ind+1, len(keys))

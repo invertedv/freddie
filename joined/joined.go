@@ -97,7 +97,7 @@ SELECT
     s.*,
     m.month,
     m.upb,
-    m.dqStat,
+//    m.dqStat,
     m.dq,
     m.reo,
     m.age,
@@ -109,12 +109,13 @@ SELECT
     m.payPl,
     m.dqDis,
     m.intUPB,
+    m.accrInt,
     m.bap,
 
-    m.lpd,
+    m.lpDt,
     m.defectDt,
     m.zbDt,
-    m.zbUPB,
+    m.zbUpb,
     m.fileMonthly,
 
     arrayElement(m.fclMonth, length(m.fclMonth)) AS fclMonth,
@@ -152,12 +153,13 @@ JOIN (
         groupArray(intUPB) AS intUPB,
         groupArray(dqDis) AS dqDis,
         groupArray(payPl) AS payPl,
+        groupArray(accrInt) AS accrInt,
         groupArray(bap) AS bap,
 
-        max(lpd) AS lpd,
+        max(lpDt) AS lpDt,
         max(defectDt) AS defectDt,
         max(zbDt) AS zbDt,
-        max(zbUPB) AS zbUPB,
+        max(zbUpb) AS zbUpb,
         max(fileMonthly) AS fileMonthly,
 
 //        groupArray(dqDis = 'Y' ? aaa.month : Null) AS dqDis,
@@ -177,7 +179,8 @@ JOIN (
         groupArray(if(modTLoss != 0.0 or modCLoss != 0.0 or stepMod = 'Y' , modCLoss, Null)) AS modCLoss1,
         groupArray(if(modTLoss != 0.0 or modCLoss != 0.0 or stepMod = 'Y' , stepMod, Null)) AS stepMod1
     FROM
-        tmpMonthly AS aaa
+       (SELECT * FROM
+        tmpMonthly ORDER BY lnID, month) AS aaa
     GROUP BY lnID) AS m
 ON s.lnID = m.lnID
 JOIN v

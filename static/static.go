@@ -47,7 +47,6 @@ func LoadRaw(filen string, table string, create bool, con *chutils.Connect) (err
 	if err = chutils.Export(nrdr, wrtr, 400000); err != nil {
 		return
 	}
-
 	return nil
 }
 
@@ -58,26 +57,8 @@ func vField(td *chutils.TableDef, data chutils.Row, valid chutils.Valid, validat
 	for ind, v := range valid {
 		name := td.FieldDefs[ind].Name
 		// There are a few fields where <space> is a valid answer.  Let's replace that with a character.
-		switch name {
-		case "harp":
-			if data[ind].(string) == "" {
-				data[ind] = "N"
-			}
-		case "sConform":
-			if data[ind].(string) == "" {
-				data[ind] = "N"
-			}
-		case "program":
-			if data[ind].(string) == "9" {
-				data[ind] = "N"
-			}
-		case "io":
-			if data[ind].(string) == "" {
-				data[ind] = "N"
-			}
-		}
 		switch v {
-		case chutils.VPass:
+		case chutils.VPass, chutils.VDefault:
 			res = append(res, []byte(name+":0;")...)
 		default:
 			res = append(res, []byte(name+":1;")...)
@@ -187,7 +168,8 @@ func Build() *chutils.TableDef {
 
 		matDtMin, matDtMax, matDtMiss = minDt, futDt, missDt
 
-		msaMiss = "00000"
+		msaMiss = "XXXXX"
+		msaDef  = "00000"
 		msaLvl  = []string{"10180", "10380", "10420", "10500", "10540", "10580", "10740", "10780", "10900", "11020", "11100", "11180",
 			"11244", "11260", "11300", "11340", "11460", "11500", "11540", "11640", "11700", "12020", "12060", "12100", "12220",
 			"12260", "12420", "12540", "12580", "12620", "12700", "12940", "12980", "13020", "13140", "13220", "13380", "13460",
@@ -221,7 +203,7 @@ func Build() *chutils.TableDef {
 			"45220", "45300", "45460", "45500", "45540", "45780", "45820", "45940", "46060", "46140", "46220", "46300", "46340",
 			"46520", "46540", "46660", "46700", "47020", "47220", "47260", "47300", "47380", "47460", "47580", "47644", "47664",
 			"47894", "47940", "48060", "48140", "48260", "48300", "48424", "48540", "48620", "48660", "48700", "48864", "48900",
-			"49020", "49180", "49340", "49420", "49500", "49620", "49660", "49700", "49740"}
+			"49020", "49180", "49340", "49420", "49500", "49620", "49660", "49700", "49740", msaDef}
 
 		miMin, miMax, miMiss       = int32(0), int32(55), int32(-1)
 		unitMin, unitMax, unitMiss = int32(1), int32(4), int32(-1)
@@ -345,18 +327,22 @@ func Build() *chutils.TableDef {
 		servicerMiss = "unknown"
 
 		sConformMiss = strMiss
-		sConformLvl  = []string{"Y", ""}
+		sConformDef  = "N"
+		sConformLvl  = []string{"Y", "N"}
 
 		programMiss = strMiss
+		programDef  = "9"
 		programLvl  = []string{"H", "9"}
 
 		harpMiss = strMiss
-		harpLvl  = []string{"Y", ""}
+		harpDef  = "N"
+		harpLvl  = []string{"Y", "N"}
 
 		valMthdMiss = strMiss
-		valMthdLvl  = []string{"1", "2", "3"}
+		valMthdLvl  = []string{"1", "2", "3", "9"}
 
 		ioMiss = strMiss
+		ioDef  = "N"
 		ioLvl  = []string{"Y", "N"}
 	)
 	fds := make(map[int]*chutils.FieldDef)
@@ -402,6 +388,7 @@ func Build() *chutils.TableDef {
 		ChSpec:      chutils.ChField{Base: chutils.ChFixedString, Length: 5},
 		Description: "msa/division code, missing/not in MSA=" + msaMiss,
 		Legal:       &chutils.LegalValues{Levels: msaLvl},
+		Default:     "00000",
 		Missing:     msaMiss,
 	}
 	fds[4] = fd
@@ -592,6 +579,7 @@ func Build() *chutils.TableDef {
 		Description: "super conforming flag: Y, N, missing=" + sConformMiss,
 		Legal:       &chutils.LegalValues{Levels: sConformLvl},
 		Missing:     sConformMiss,
+		Default:     sConformDef,
 	}
 	fds[25] = fd
 
@@ -610,6 +598,7 @@ func Build() *chutils.TableDef {
 		Description: "freddie program: H (home possible) N (no program), missing=" + programMiss,
 		Legal:       &chutils.LegalValues{Levels: programLvl},
 		Missing:     programMiss,
+		Default:     programDef,
 	}
 	fds[27] = fd
 
@@ -619,6 +608,7 @@ func Build() *chutils.TableDef {
 		Description: "HARP loan: Y, N, missing=" + harpMiss,
 		Legal:       &chutils.LegalValues{Levels: harpLvl},
 		Missing:     harpMiss,
+		Default:     harpDef,
 	}
 	fds[28] = fd
 
@@ -637,6 +627,7 @@ func Build() *chutils.TableDef {
 		Description: "io Flag: Y, N, missing=" + ioMiss,
 		Legal:       &chutils.LegalValues{Levels: ioLvl},
 		Missing:     ioMiss,
+		Default:     ioDef,
 	}
 	fds[30] = fd
 	return chutils.NewTableDef("lnID", chutils.MergeTree, fds)

@@ -29,9 +29,6 @@ func LoadRaw(fileN string, table string, create bool, nConcur int, con *chutils.
 	rdr.Skip = 0
 	defer rdr.Close()
 	rdr.SetTableSpec(Build())
-	if e := rdr.TableSpec().Check(); e != nil {
-		return e
-	}
 
 	// build slice of readers
 	rdrs, err := file.Rdrs(rdr, nConcur)
@@ -56,12 +53,17 @@ func LoadRaw(fileN string, table string, create bool, nConcur int, con *chutils.
 		if e != nil {
 			return e
 		}
-		rdrsn = append(rdrsn, rn)
-		if j == 0 && create {
-			if err = rn.TableSpec().Create(con, table); err != nil {
-				return err
+		if j == 0 {
+			if e := rn.TableSpec().Check(); e != nil {
+				return e
+			}
+			if create {
+				if err = rn.TableSpec().Create(con, table); err != nil {
+					return err
+				}
 			}
 		}
+		rdrsn = append(rdrsn, rn)
 	}
 	TableDef = rdrsn[0].TableSpec()
 
@@ -90,7 +92,7 @@ func xtraFields() (fds []*chutils.FieldDef) {
 		Name:        "dq",
 		ChSpec:      chutils.ChField{Base: chutils.ChInt, Length: 32},
 		Description: "months delinquent",
-		Legal:       &chutils.LegalValues{LowLimit: int32(0), HighLimit: int32(100)},
+		Legal:       &chutils.LegalValues{LowLimit: int32(0), HighLimit: int32(999)},
 		Missing:     int32(-1),
 		Width:       0,
 	}
@@ -112,19 +114,9 @@ func vField(td *chutils.TableDef, data chutils.Row, valid chutils.Valid, validat
 	for ind, v := range valid {
 		name := td.FieldDefs[ind].Name
 		// space is a valid answer, so let's put in a character
-		switch name {
-		case "mod":
-			if data[ind].(string) == "" {
-				data[ind] = "N"
-			}
-		case "stepMod":
-			if data[ind].(string) == "" {
-				data[ind] = "N"
-			}
 
-		}
 		switch v {
-		case chutils.VPass:
+		case chutils.VPass, chutils.VDefault:
 			res = append(res, []byte(name+":0;")...)
 		default:
 			res = append(res, []byte(name+":1;")...)
@@ -171,7 +163,7 @@ func reoField(td *chutils.TableDef, data chutils.Row, valid chutils.Valid, valid
 
 func Build() *chutils.TableDef {
 	var (
-		minDt   = time.Date(1999, 1, 1, 0, 0, 0, 0, time.UTC)
+		minDt   = time.Date(1990, 1, 1, 0, 0, 0, 0, time.UTC)
 		maxDt   = time.Now()
 		missDt  = time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)
 		strMiss = "X"
@@ -189,55 +181,61 @@ func Build() *chutils.TableDef {
 		ageMin, ageMax, ageMiss                = int32(0), int32(480), int32(-1)
 		rTermLglMin, rTermLglMax, rTermLglMiss = int32(0), int32(480), int32(-1)
 
-		defectDtMin, defectDtMax, defectDtMiss = minDt, maxDt, missDt
+		defectDtMin, defectDtMax, defectDtMiss, defectDtDef = minDt, maxDt, missDt, missDt
 
 		modMiss = strMiss
+		modDef  = "N"
 		modLvl  = []string{"Y", "P", "N"}
 
 		zbMiss = strMiss
-		zbLvl  = []string{"01", "02", "03", "96", "09", "15"}
+		zbDef  = "00"
+		zbLvl  = []string{"01", "02", "03", "96", "09", "15", "00"}
 
-		zbDtMin, zbDtMax, zbDtMiss = minDt, maxDt, missDt
+		zbDtMin, zbDtMax, zbDtMiss, zbDtDef = minDt, maxDt, missDt, missDt
 
 		curRateMin, curRateMax, curRateMiss = float32(0.0), float32(15.0), float32(-1.0)
 		defrlMin, defrlMax, defrlMiss       = float32(0.0), float32(1000000.0), float32(-1.0)
 
-		lpdMin, lpdMax, lpdMiss = minDt, maxDt, missDt
+		lpDtMin, lpDtMax, lpDtMiss, lpDtDef = minDt, maxDt, missDt, missDt
 
-		fclProMiMin, fclProMiMax, fclProMiMiss    = float32(-2000000.0), float32(2000000.0), float32(0.0)
-		fclProNetMin, fclProNetMax, fclProNetMiss = float32(-2000000.0), float32(2000000.0), float32(0.0)
-		fclProMwMin, fclProMwMax, fclProMwMiss    = float32(-2000000.0), float32(2000000.0), float32(0.0)
+		fclProMiMin, fclProMiMax, fclProMiMiss, fclProMiDef     = float32(-2000000.0), float32(2000000.0), float32(-1.0), float32(0.0)
+		fclProNetMin, fclProNetMax, fclProNetMiss, fclProNetDef = float32(-2000000.0), float32(2000000.0), float32(-1.0), float32(0.0)
+		fclProMwMin, fclProMwMax, fclProMwMiss, fclProMwDef     = float32(-2000000.0), float32(2000000.0), float32(-1.0), float32(0.0)
 
-		fclExpMin, fclExpMax, fclExpMiss       = float32(-2000000.0), float32(2000000.0), float32(0.0)
-		fclLExpMin, fclLExpMax, fclLExpMiss    = float32(-2000000.0), float32(2000000.0), float32(0.0)
-		fclPExpMin, fclPExpMax, fclPExpMiss    = float32(-2000000.0), float32(2000000.0), float32(0.0)
-		fclTaxesMin, fclTaxesMax, fclTaxesMiss = float32(-2000000.0), float32(2000000.0), float32(0.0)
+		fclExpMin, fclExpMax, fclExpMiss, fclExpDef         = float32(-2000000.0), float32(2000000.0), float32(-1.0), float32(0.0)
+		fclLExpMin, fclLExpMax, fclLExpMiss, fclLExpDef     = float32(-2000000.0), float32(2000000.0), float32(-1.0), float32(0.0)
+		fclPExpMin, fclPExpMax, fclPExpMiss, fclPExpDef     = float32(-2000000.0), float32(2000000.0), float32(-1.0), float32(0.0)
+		fclTaxesMin, fclTaxesMax, fclTaxesMiss, fclTaxesDef = float32(-2000000.0), float32(2000000.0), float32(-1.0), float32(0.0)
 
-		fclMExpMin, fclMExpMax, fclMExpMiss    = float32(-2000000.0), float32(2000000.0), float32(0.0)
-		fclLossMin, fclLossMax, fclLossMiss    = float32(-2000000.0), float32(2000000.0), float32(0.0)
-		modTLossMin, modTLossMax, modTLossMiss = float32(-2000000.0), float32(2000000.0), float32(0.0)
+		fclMExpMin, fclMExpMax, fclMExpMiss, fclMExpDef     = float32(-2000000.0), float32(2000000.0), float32(-1.0), float32(0.0)
+		fclLossMin, fclLossMax, fclLossMiss, fclLossDef     = float32(-2000000.0), float32(2000000.0), float32(-1.0), float32(0.0)
+		modTLossMin, modTLossMax, modTLossMiss, modTLossDef = float32(-2000000.0), float32(2000000.0), float32(-1.0), float32(0.0)
 
 		stepModMiss = strMiss
-		stepModLvl  = []string{"Y", "N", ""}
+		stepModDef  = "N"
+		stepModLvl  = []string{"Y", "N"}
 
-		payPlMiss = "N"
-		payPlLvl  = []string{"Y", "P"}
+		payPlMiss = strMiss
+		payPlDef  = "N"
+		payPlLvl  = []string{"Y", "P", "N"}
 
-		eLTVMin, eLTVMax, eLTVMiss          = int32(1), int32(900), int32(-1)
-		zbUPBMin, zbUPBMax, zbUPBMiss       = float32(0.0), float32(2000000.0), float32(-1.0)
-		accrIntMin, accrIntMax, accrIntMiss = float32(0.0), float32(500000.0), float32(-1.0)
+		eLTVMin, eLTVMax, eLTVMiss, eLTVDef             = int32(1), int32(900), int32(-1), int32(0)
+		zbUpbMin, zbUpbMax, zbUpbMiss, zbUpbDef         = float32(0.0), float32(2000000.0), float32(-1.0), float32(0.0)
+		accrIntMin, accrIntMax, accrIntMiss, accrIntDef = float32(0.0), float32(500000.0), float32(-1.0), float32(0.0)
 
-		dqDisMiss = "N"
+		dqDisMiss = strMiss
+		dqDisDef  = "N"
 		dqDisLvl  = []string{"Y", "N"}
 
 		bapMiss = strMiss
-		bapLvl  = []string{"F", "R", "T"}
+		bapDef  = "N"
+		bapLvl  = []string{"F", "R", "T", "N"}
 
-		modCLossMin, modCLossMax, modCLossMiss = float32(-150000.0), float32(150000.0), float32(0.0)
-		intUPBMin, intUPBMax, intUPBMiss       = float32(0.0), float32(2000000.0), float32(-1.0)
+		modCLossMin, modCLossMax, modCLossMiss, modCLossDef = float32(-150000.0), float32(150000.0), float32(-1.0), float32(0.0)
+		intUPBMin, intUPBMax, intUPBMiss, intUPBDef         = float32(0.0), float32(2000000.0), float32(-1.0), float32(0.0)
 	)
 
-	for dq := 0; dq < 100; dq++ {
+	for dq := 0; dq <= 999; dq++ {
 		dqStatLvl = append(dqStatLvl, fmt.Sprintf("%d", dq))
 	}
 	dqStatLvl = append(dqStatLvl, "RA") // REO Acquisition
@@ -283,7 +281,7 @@ func Build() *chutils.TableDef {
 	fd = &chutils.FieldDef{
 		Name:        "age",
 		ChSpec:      chutils.ChField{Base: chutils.ChInt, Length: 32},
-		Description: "loan age based on origination date" + fmt.Sprintf("%v", ageMiss),
+		Description: "loan age based on origination date, missing=" + fmt.Sprintf("%v", ageMiss),
 		Legal:       &chutils.LegalValues{LowLimit: ageMin, HighLimit: ageMax},
 		Missing:     ageMiss,
 	}
@@ -304,6 +302,7 @@ func Build() *chutils.TableDef {
 		Description: "underwriting defect date, missing=" + defectDtMiss.Format("2006/1/2"),
 		Legal:       &chutils.LegalValues{LowLimit: defectDtMin, HighLimit: defectDtMax},
 		Missing:     defectDtMiss,
+		Default:     defectDtDef,
 	}
 	fds[6] = fd
 
@@ -313,15 +312,18 @@ func Build() *chutils.TableDef {
 		Description: "modification flag: Y, N, P (prior), missing=" + modMiss,
 		Legal:       &chutils.LegalValues{Levels: modLvl},
 		Missing:     modMiss,
+		Default:     modDef,
 	}
 	fds[7] = fd
 
 	fd = &chutils.FieldDef{
 		Name:        "zb",
 		ChSpec:      chutils.ChField{Base: chutils.ChFixedString, Length: 2},
-		Description: "zero balance: 01 (pp),02 (3rd party), 03 (short), 96 (repurch), 09 (REO), 15(reperf), missing=" + zbMiss,
+		Description: "zero balance:00 (noop), 01 (pp),02 (3rd party), 03 (short), 96 (repurch), 09 (REO), 15(reperf), missing=" + zbMiss,
 		Legal:       &chutils.LegalValues{Levels: zbLvl},
-		Missing:     zbMiss}
+		Missing:     zbMiss,
+		Default:     zbDef,
+	}
 	fds[8] = fd
 
 	fd = &chutils.FieldDef{
@@ -330,6 +332,7 @@ func Build() *chutils.TableDef {
 		Description: "zero balance date, missing=" + zbDtMiss.Format("2006/1/2"),
 		Legal:       &chutils.LegalValues{LowLimit: zbDtMin, HighLimit: zbDtMax},
 		Missing:     zbDtMiss,
+		Default:     zbDtDef,
 	}
 	fds[9] = fd
 
@@ -352,11 +355,12 @@ func Build() *chutils.TableDef {
 	fds[11] = fd
 
 	fd = &chutils.FieldDef{
-		Name:        "lpd",
+		Name:        "lpDt",
 		ChSpec:      chutils.ChField{Base: chutils.ChDate, Format: "200601"},
-		Description: "last pay date, missing=" + lpdMiss.Format("2006/1/2"),
-		Legal:       &chutils.LegalValues{LowLimit: lpdMin, HighLimit: lpdMax},
-		Missing:     lpdMiss,
+		Description: "last pay date, missing=" + lpDtMiss.Format("2006/1/2"),
+		Legal:       &chutils.LegalValues{LowLimit: lpDtMin, HighLimit: lpDtMax},
+		Missing:     lpDtMiss,
+		Default:     lpDtDef,
 	}
 	fds[12] = fd
 
@@ -366,6 +370,7 @@ func Build() *chutils.TableDef {
 		Description: "foreclosure credit enhancement proceeds, missing=" + fmt.Sprintf("%v", fclProMiMiss),
 		Legal:       &chutils.LegalValues{LowLimit: fclProMiMin, HighLimit: fclProMiMax},
 		Missing:     fclProMiMiss,
+		Default:     fclProMiDef,
 	}
 	fds[13] = fd
 
@@ -375,6 +380,7 @@ func Build() *chutils.TableDef {
 		Description: "foreclosure net proceeds, missing=" + fmt.Sprintf("%v", fclProNetMiss),
 		Legal:       &chutils.LegalValues{LowLimit: fclProNetMin, HighLimit: fclProNetMax},
 		Missing:     fclProNetMiss,
+		Default:     fclProNetDef,
 	}
 	fds[14] = fd
 
@@ -384,6 +390,7 @@ func Build() *chutils.TableDef {
 		Description: "foreclosure make whole proceeds, missing=" + fmt.Sprintf("%v", fclProMwMiss),
 		Legal:       &chutils.LegalValues{LowLimit: fclProMwMin, HighLimit: fclProMwMax},
 		Missing:     fclProMwMiss,
+		Default:     fclProMwDef,
 	}
 	fds[15] = fd
 
@@ -393,6 +400,7 @@ func Build() *chutils.TableDef {
 		Description: "total foreclosure expenses (values are negative), missing=" + fmt.Sprintf("%v", fclExpMiss),
 		Legal:       &chutils.LegalValues{LowLimit: fclExpMin, HighLimit: fclExpMax},
 		Missing:     fclExpMiss,
+		Default:     fclExpDef,
 	}
 	fds[16] = fd
 
@@ -402,6 +410,7 @@ func Build() *chutils.TableDef {
 		Description: "foreclosure recovery legal expenses (values are negative), missing=" + fmt.Sprintf("%v", fclLExpMiss),
 		Legal:       &chutils.LegalValues{LowLimit: fclLExpMin, HighLimit: fclLExpMax},
 		Missing:     fclLExpMiss,
+		Default:     fclLExpDef,
 	}
 	fds[17] = fd
 
@@ -411,6 +420,7 @@ func Build() *chutils.TableDef {
 		Description: "foreclosure property preservation expenses (values are negative), missing=" + fmt.Sprintf("%v", fclPExpMiss),
 		Legal:       &chutils.LegalValues{LowLimit: fclPExpMin, HighLimit: fclPExpMax},
 		Missing:     fclPExpMiss,
+		Default:     fclPExpDef,
 	}
 	fds[18] = fd
 
@@ -420,6 +430,7 @@ func Build() *chutils.TableDef {
 		Description: "foreclosure property taxes and insurance (values are negative), missing=" + fmt.Sprintf("%v", fclTaxesMiss),
 		Legal:       &chutils.LegalValues{LowLimit: fclTaxesMin, HighLimit: fclTaxesMax},
 		Missing:     fclTaxesMiss,
+		Default:     fclTaxesDef,
 	}
 	fds[19] = fd
 
@@ -429,6 +440,7 @@ func Build() *chutils.TableDef {
 		Description: "foreclosure misc expenses (values are negative), missing=" + fmt.Sprintf("%v", fclMExpMiss),
 		Legal:       &chutils.LegalValues{LowLimit: fclMExpMin, HighLimit: fclMExpMax},
 		Missing:     fclMExpMiss,
+		Default:     fclMExpDef,
 	}
 	fds[20] = fd
 
@@ -438,6 +450,7 @@ func Build() *chutils.TableDef {
 		Description: "foreclosure loss amount (a loss is a negative value), missing=" + fmt.Sprintf("%v", fclLossMiss),
 		Legal:       &chutils.LegalValues{LowLimit: fclLossMin, HighLimit: fclLossMax},
 		Missing:     fclLossMiss,
+		Default:     fclLossDef,
 	}
 	fds[21] = fd
 
@@ -447,6 +460,7 @@ func Build() *chutils.TableDef {
 		Description: "total modification loss, missing=" + fmt.Sprintf("%v", modTLossMiss),
 		Legal:       &chutils.LegalValues{LowLimit: modTLossMin, HighLimit: modTLossMax},
 		Missing:     modTLossMiss,
+		Default:     modTLossDef,
 	}
 	fds[22] = fd
 
@@ -456,6 +470,7 @@ func Build() *chutils.TableDef {
 		Description: "step mod flag: Y, N, missing=" + stepModMiss,
 		Legal:       &chutils.LegalValues{Levels: stepModLvl},
 		Missing:     stepModMiss,
+		Default:     stepModDef,
 	}
 	fds[23] = fd
 
@@ -465,6 +480,7 @@ func Build() *chutils.TableDef {
 		Description: "pay plan: Y, N, P (prior), missing=" + payPlMiss,
 		Legal:       &chutils.LegalValues{Levels: payPlLvl},
 		Missing:     payPlMiss,
+		Default:     payPlDef,
 	}
 	fds[24] = fd
 
@@ -474,15 +490,17 @@ func Build() *chutils.TableDef {
 		Description: "estimated LTV based on Freddie AVM, missing=" + fmt.Sprintf("%v", eLTVMiss),
 		Legal:       &chutils.LegalValues{LowLimit: eLTVMin, HighLimit: eLTVMax},
 		Missing:     eLTVMiss,
+		Default:     eLTVDef,
 	}
 	fds[25] = fd
 
 	fd = &chutils.FieldDef{
-		Name:        "zbUPB",
+		Name:        "zbUpb",
 		ChSpec:      chutils.ChField{Base: chutils.ChFloat, Length: 32},
-		Description: "UPB just prior to zero balance, missing=" + fmt.Sprintf("%v", zbUPBMiss),
-		Legal:       &chutils.LegalValues{LowLimit: zbUPBMin, HighLimit: zbUPBMax},
-		Missing:     zbUPBMiss,
+		Description: "UPB just prior to zero balance, missing=" + fmt.Sprintf("%v", zbUpbMiss),
+		Legal:       &chutils.LegalValues{LowLimit: zbUpbMin, HighLimit: zbUpbMax},
+		Missing:     zbUpbMiss,
+		Default:     zbUpbDef,
 	}
 	fds[26] = fd
 
@@ -492,6 +510,7 @@ func Build() *chutils.TableDef {
 		Description: "delinquent accrued interest, missing=" + fmt.Sprintf("%v", accrIntMiss),
 		Legal:       &chutils.LegalValues{LowLimit: accrIntMin, HighLimit: accrIntMax},
 		Missing:     accrIntMiss,
+		Default:     accrIntDef,
 	}
 	fds[27] = fd
 
@@ -501,15 +520,17 @@ func Build() *chutils.TableDef {
 		Description: "dq due to disaster: Y, N, missing=" + dqDisMiss,
 		Legal:       &chutils.LegalValues{Levels: dqDisLvl},
 		Missing:     dqDisMiss,
+		Default:     dqDisDef,
 	}
 	fds[28] = fd
 
 	fd = &chutils.FieldDef{
 		Name:        "bap",
 		ChSpec:      chutils.ChField{Base: chutils.ChFixedString, Length: 1},
-		Description: "borrower assistant plan: F (forebearance), R (repayment), T (trial), missing=" + bapMiss,
+		Description: "borrower assistant plan: F (forebearance), R (repayment), T (trial), N (none), missing=" + bapMiss,
 		Legal:       &chutils.LegalValues{Levels: bapLvl},
 		Missing:     bapMiss,
+		Default:     bapDef,
 	}
 	fds[29] = fd
 
@@ -519,6 +540,7 @@ func Build() *chutils.TableDef {
 		Description: "current period modification loss, missing=" + fmt.Sprintf("%v", modCLossMiss),
 		Legal:       &chutils.LegalValues{LowLimit: modCLossMin, HighLimit: modCLossMax},
 		Missing:     modCLossMiss,
+		Default:     modCLossDef,
 	}
 	fds[30] = fd
 
@@ -528,6 +550,7 @@ func Build() *chutils.TableDef {
 		Description: "interest bearing UPB, missing=" + fmt.Sprintf("%v", intUPBMiss),
 		Legal:       &chutils.LegalValues{LowLimit: intUPBMin, HighLimit: intUPBMax},
 		Missing:     intUPBMiss,
+		Default:     intUPBDef,
 	}
 	fds[31] = fd
 	return chutils.NewTableDef("lnID, month", chutils.MergeTree, fds)
