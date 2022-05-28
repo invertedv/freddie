@@ -315,7 +315,7 @@ func Build() *chutils.TableDef {
 			"97800", "97900", "98000", "98100", "98200", "98300", "98400", "98500", "98600", "98700", "98800", "98900",
 			"99000", "99100", "99200", "99300", "99400", "99500", "99600", "99700", "99800", "99900"}
 
-		lnIDMiss = "error"
+		lnIdMiss = "error"
 
 		purposeMiss = strMiss
 		purposeLvl  = []string{"P", "C", "N", "R"}
@@ -520,11 +520,11 @@ func Build() *chutils.TableDef {
 	fds[18] = fd
 
 	fd = &chutils.FieldDef{
-		Name:        "lnID",
+		Name:        "lnId",
 		ChSpec:      chutils.ChField{Base: chutils.ChString},
-		Description: "Loan ID PYYQnXXXXXXX P=F or A YY=year, n=quarter, missing=" + lnIDMiss,
+		Description: "Loan ID PYYQnXXXXXXX P=F or A YY=year, n=quarter, missing=" + lnIdMiss,
 		Legal:       &chutils.LegalValues{},
-		Missing:     lnIDMiss,
+		Missing:     lnIdMiss,
 	}
 	fds[19] = fd
 
@@ -584,11 +584,11 @@ func Build() *chutils.TableDef {
 	fds[25] = fd
 
 	fd = &chutils.FieldDef{
-		Name:        "preHARPlnID",
+		Name:        "preHARPlnId",
 		ChSpec:      chutils.ChField{Base: chutils.ChString, Length: 0},
-		Description: "for HARP loans, lnID of prior loan, missing=" + lnIDMiss,
+		Description: "for HARP loans, lnId of prior loan, missing=" + lnIdMiss,
 		Legal:       &chutils.LegalValues{},
-		Missing:     lnIDMiss,
+		Missing:     lnIdMiss,
 	}
 	fds[26] = fd
 
@@ -630,5 +630,5 @@ func Build() *chutils.TableDef {
 		Default:     ioDef,
 	}
 	fds[30] = fd
-	return chutils.NewTableDef("lnID", chutils.MergeTree, fds)
+	return chutils.NewTableDef("lnId", chutils.MergeTree, fds)
 }

@@ -21,7 +21,7 @@ func Load(monthly string, static string, table string, tmpDB string, create bool
 
 	qryUse := strings.Replace(strings.Replace(qry, "tmpMonthly", tmpMonthly, -1), "tmpStatic", tmpStatic, -1)
 	srdr := s.NewReader(qryUse, con)
-	if e := srdr.Init("lnID", chutils.MergeTree); e != nil {
+	if e := srdr.Init("lnId", chutils.MergeTree); e != nil {
 		log.Fatalln(e)
 	}
 	for _, fd := range srdr.TableSpec().FieldDefs {
@@ -36,6 +36,8 @@ func Load(monthly string, static string, table string, tmpDB string, create bool
 			fd.Description = "month of modification"
 		case "fclMonth":
 			fd.Description = "month of foreclosure resolution"
+		case "ageFpDt":
+			fd.Description = "age based on fdDt, missing=-1000"
 		case "qaMonthly":
 			fd.ChSpec.Funcs = chutils.OuterFuncs{chutils.OuterLowCardinality}
 		case "valStatic":
@@ -67,32 +69,32 @@ func Load(monthly string, static string, table string, tmpDB string, create bool
 const qry = `
 WITH v AS (
 SELECT
-    lnID,
+    lnId,
     arrayStringConcat(arrayMap(x,y -> concat(x, ':', toString(y)), field, validation), ';') as x
 FROM ( 
 SELECT
-    lnID,
+    lnId,
     groupArray(f) AS field,
     groupArray(v) AS validation
 FROM(    
     SELECT
-      lnID,
+      lnId,
       field AS f,
       Max(valid) AS v
     FROM (
         SELECT
-            lnID,
+            lnId,
             arrayElement(splitByChar(':', v), 1) AS field,
-            arrayElement(splitByChar(':', v), 2) = '0' ? 0 : 1 AS valid
+            substr(arrayElement(splitByChar(':', v), 2), 1, 1) = '0' ? 0 : 1 AS valid
         FROM (    
             SELECT
-                lnID,
+                lnId,
                 arrayJoin(splitByChar(';', qaMonthly)) AS v
             FROM
                 tmpMonthly))
-     GROUP BY lnID, field
-     ORDER BY lnID, field)
-GROUP BY lnID))
+     GROUP BY lnId, field
+     ORDER BY lnId, field)
+GROUP BY lnId))
 SELECT
     s.*,
     m.month,
@@ -108,8 +110,10 @@ SELECT
     m.defrl,
     m.payPl,
     m.dqDis,
-    m.intUPB,
+    m.intUpb,
     m.accrInt,
+    arrayMap(x->year(fpDt) > 1990 ? dateDiff('month', s.fpDt, x) + 1: -1000, m.month) AS ageFpDt,
+    m.eLtv,
     m.bap,
 
     m.lpDt,
@@ -138,7 +142,7 @@ FROM
     tmpStatic AS s
 JOIN (
     SELECT
-        lnID,
+        lnId,
         groupArray(month) AS month,
         groupArray(upb) AS upb,
         groupArray(dqStat) AS dqStat,
@@ -150,10 +154,11 @@ JOIN (
         groupArray(zb) AS zb,
         groupArray(curRate) AS curRate,
         groupArray(defrl) AS defrl,
-        groupArray(intUPB) AS intUPB,
+        groupArray(intUpb) AS intUpb,
         groupArray(dqDis) AS dqDis,
         groupArray(payPl) AS payPl,
         groupArray(accrInt) AS accrInt,
+        groupArray(eLtv) AS eLtv,
         groupArray(bap) AS bap,
 
         max(lpDt) AS lpDt,
@@ -180,11 +185,11 @@ JOIN (
         groupArray(if(modTLoss != 0.0 or modCLoss != 0.0 or stepMod = 'Y' , stepMod, Null)) AS stepMod1
     FROM
        (SELECT * FROM
-        tmpMonthly ORDER BY lnID, month) AS aaa
-    GROUP BY lnID) AS m
-ON s.lnID = m.lnID
+        tmpMonthly ORDER BY lnId, month) AS aaa
+    GROUP BY lnId) AS m
+ON s.lnId = m.lnId
 JOIN v
-ON s.lnID = v.lnID
+ON s.lnId = v.lnId
 `
 
 //TODO - change defers to funcs with _ = xyz.Close() to get it to stop complaining

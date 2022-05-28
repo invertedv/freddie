@@ -168,7 +168,7 @@ func Build() *chutils.TableDef {
 		missDt  = time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)
 		strMiss = "X"
 
-		lnIDMiss = "error"
+		lnIdMiss = "error"
 
 		monthMin, monthMax, monthMiss = minDt, maxDt, missDt
 
@@ -178,8 +178,8 @@ func Build() *chutils.TableDef {
 
 		dqStatLvl = make([]string, 0)
 
-		ageMin, ageMax, ageMiss                = int32(0), int32(480), int32(-1)
-		rTermLglMin, rTermLglMax, rTermLglMiss = int32(0), int32(480), int32(-1)
+		ageMin, ageMax, ageMiss                = int32(0), int32(600), int32(-1)
+		rTermLglMin, rTermLglMax, rTermLglMiss = int32(0), int32(600), int32(-1)
 
 		defectDtMin, defectDtMax, defectDtMiss, defectDtDef = minDt, maxDt, missDt, missDt
 
@@ -219,7 +219,7 @@ func Build() *chutils.TableDef {
 		payPlDef  = "N"
 		payPlLvl  = []string{"Y", "P", "N"}
 
-		eLTVMin, eLTVMax, eLTVMiss, eLTVDef             = int32(1), int32(900), int32(-1), int32(0)
+		eLtvMin, eLtvMax, eLtvMiss, eLtvDef             = int32(1), int32(900), int32(-1), int32(0)
 		zbUpbMin, zbUpbMax, zbUpbMiss, zbUpbDef         = float32(0.0), float32(2000000.0), float32(-1.0), float32(0.0)
 		accrIntMin, accrIntMax, accrIntMiss, accrIntDef = float32(0.0), float32(500000.0), float32(-1.0), float32(0.0)
 
@@ -232,7 +232,7 @@ func Build() *chutils.TableDef {
 		bapLvl  = []string{"F", "R", "T", "N"}
 
 		modCLossMin, modCLossMax, modCLossMiss, modCLossDef = float32(-150000.0), float32(150000.0), float32(-1.0), float32(0.0)
-		intUPBMin, intUPBMax, intUPBMiss, intUPBDef         = float32(0.0), float32(2000000.0), float32(-1.0), float32(0.0)
+		intUpbMin, intUpbMax, intUpbMiss, intUpbDef         = float32(0.0), float32(2000000.0), float32(-1.0), float32(0.0)
 	)
 
 	for dq := 0; dq <= 999; dq++ {
@@ -243,11 +243,11 @@ func Build() *chutils.TableDef {
 	fds := make(map[int]*chutils.FieldDef)
 
 	fd := &chutils.FieldDef{
-		Name:        "lnID",
+		Name:        "lnId",
 		ChSpec:      chutils.ChField{Base: chutils.ChString},
-		Description: "Loan ID PYYQnXXXXXXX P=F or A YY=year, n=quarter, missing=" + lnIDMiss,
+		Description: "Loan ID PYYQnXXXXXXX P=F or A YY=year, n=quarter, missing=" + lnIdMiss,
 		Legal:       &chutils.LegalValues{},
-		Missing:     lnIDMiss,
+		Missing:     lnIdMiss,
 	}
 	fds[0] = fd
 
@@ -485,12 +485,12 @@ func Build() *chutils.TableDef {
 	fds[24] = fd
 
 	fd = &chutils.FieldDef{
-		Name:        "eLTV",
+		Name:        "eLtv",
 		ChSpec:      chutils.ChField{Base: chutils.ChInt, Length: 32},
-		Description: "estimated LTV based on Freddie AVM, missing=" + fmt.Sprintf("%v", eLTVMiss),
-		Legal:       &chutils.LegalValues{LowLimit: eLTVMin, HighLimit: eLTVMax},
-		Missing:     eLTVMiss,
-		Default:     eLTVDef,
+		Description: "estimated LTV based on Freddie AVM, missing=" + fmt.Sprintf("%v", eLtvMiss),
+		Legal:       &chutils.LegalValues{LowLimit: eLtvMin, HighLimit: eLtvMax},
+		Missing:     eLtvMiss,
+		Default:     eLtvDef,
 	}
 	fds[25] = fd
 
@@ -545,13 +545,13 @@ func Build() *chutils.TableDef {
 	fds[30] = fd
 
 	fd = &chutils.FieldDef{
-		Name:        "intUPB",
+		Name:        "intUpb",
 		ChSpec:      chutils.ChField{Base: chutils.ChFloat, Length: 32},
-		Description: "interest bearing UPB, missing=" + fmt.Sprintf("%v", intUPBMiss),
-		Legal:       &chutils.LegalValues{LowLimit: intUPBMin, HighLimit: intUPBMax},
-		Missing:     intUPBMiss,
-		Default:     intUPBDef,
+		Description: "interest bearing UPB, missing=" + fmt.Sprintf("%v", intUpbMiss),
+		Legal:       &chutils.LegalValues{LowLimit: intUpbMin, HighLimit: intUpbMax},
+		Missing:     intUpbMiss,
+		Default:     intUpbDef,
 	}
 	fds[31] = fd
-	return chutils.NewTableDef("lnID, month", chutils.MergeTree, fds)
+	return chutils.NewTableDef("lnId, month", chutils.MergeTree, fds)
 }
