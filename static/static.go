@@ -1,3 +1,4 @@
+// Package static loads a single quarter of static data into ClickHouse.
 package static
 
 import (
@@ -13,9 +14,10 @@ import (
 // TableDef is the *chutils.TableDef of the nested reader
 var TableDef *chutils.TableDef
 
-// LoadRaw loads the raw monthly series
-func LoadRaw(filen string, table string, create bool, con *chutils.Connect) (err error) {
-	fileName = filen
+// LoadRaw loads the static data "filen" into "table".  The table is created/reset if create=true. con is the
+// connector to ClickHouse.
+func LoadRaw(sourceFile string, table string, create bool, con *chutils.Connect) (err error) {
+	fileName = sourceFile // fileName is global to the package so we have it to add as a field
 
 	// build initial reader
 	f, err := os.Open(fileName)
@@ -24,9 +26,14 @@ func LoadRaw(filen string, table string, create bool, con *chutils.Connect) (err
 	}
 	rdr := file.NewReader(fileName, '|', '\n', '"', 0, 0, 0, f, 6000000)
 	rdr.Skip = 0
-	defer rdr.Close()
+	defer func() {
+		// don't throw an error if we already have one
+		if e := rdr.Close(); e != nil && err == nil {
+			err = e
+		}
+	}()
 
-	rdr.SetTableSpec(Build())
+	rdr.SetTableSpec(build())
 	if e := rdr.TableSpec().Check(); e != nil {
 		return e
 	}
@@ -34,6 +41,7 @@ func LoadRaw(filen string, table string, create bool, con *chutils.Connect) (err
 	newCalcs := make([]nested.NewCalcFn, 0)
 	newCalcs = append(newCalcs, vField, fField, vintField, pvField)
 
+	// nrdr is a nested reader -- this is needed to add the new fields
 	nrdr, err := nested.NewReader(rdr, xtraFields(), newCalcs)
 	TableDef = nrdr.TableSpec()
 
@@ -50,68 +58,7 @@ func LoadRaw(filen string, table string, create bool, con *chutils.Connect) (err
 	return nil
 }
 
-// gives the validation results for each field -- 0 = pass, 1 = value fail, 2 = type fail
-func vField(td *chutils.TableDef, data chutils.Row, valid chutils.Valid, validate bool) (interface{}, error) {
-
-	res := make([]byte, 0)
-	for ind, v := range valid {
-		name := td.FieldDefs[ind].Name
-		// There are a few fields where <space> is a valid answer.  Let's replace that with a character.
-		switch v {
-		case chutils.VPass, chutils.VDefault:
-			res = append(res, []byte(name+":0;")...)
-		default:
-			res = append(res, []byte(name+":1;")...)
-		}
-	}
-	// delete trailing ;
-	res[len(res)-1] = ' '
-	return string(res), nil
-}
-
-// fField adds the file name data comes from to output table
-func vintField(td *chutils.TableDef, data chutils.Row, valid chutils.Valid, validate bool) (interface{}, error) {
-	ind, _, err := td.Get("fpDt")
-	if err != nil {
-		return nil, err
-	}
-	fpd := data[ind].(time.Time)
-	var qtr int = int((fpd.Month()-1)/3 + 1)
-	vintage := fmt.Sprintf("%dQ%d", fpd.Year(), qtr)
-	return vintage, nil
-}
-
-// fileName is global since used as a closure to fField
-var fileName string
-
-// fField adds the file name data comes from to output table
-func fField(td *chutils.TableDef, data chutils.Row, valid chutils.Valid, validate bool) (interface{}, error) {
-	return fileName, nil
-}
-
-// calculate property value from ltv
-func pvField(td *chutils.TableDef, data chutils.Row, valid chutils.Valid, validate bool) (interface{}, error) {
-	ltvInd, _, err := td.Get("ltv")
-	if err != nil {
-		return nil, err
-	}
-	if valid[ltvInd] != chutils.VPass {
-		return -1.0, nil
-	}
-	ltv := float32(data[ltvInd].(int32))
-
-	opbInd, _, err := td.Get("opb")
-	if valid[opbInd] != chutils.VPass {
-		return -1.0, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	opb := data[opbInd].(float32)
-	return opb / (ltv / 100.0), nil
-}
-
-// xtraFields defines extra fields for the nested reader
+// xtraFields defines additional fields for the nested reader
 func xtraFields() (fds []*chutils.FieldDef) {
 	vfd := &chutils.FieldDef{
 		Name:        "qaStatic",
@@ -149,8 +96,69 @@ func xtraFields() (fds []*chutils.FieldDef) {
 	return
 }
 
-// Build builds the TableDef for the static field files
-func Build() *chutils.TableDef {
+// vField returns the validation results for each field -- 0 = pass, 1 = fail in a string which has a  keyval format
+func vField(td *chutils.TableDef, data chutils.Row, valid chutils.Valid, validate bool) (interface{}, error) {
+
+	res := make([]byte, 0)
+	for ind, v := range valid {
+		name := td.FieldDefs[ind].Name
+		// There are a few fields where <space> is a valid answer.  Let's replace that with a character.
+		switch v {
+		case chutils.VPass, chutils.VDefault:
+			res = append(res, []byte(name+":0;")...)
+		default:
+			res = append(res, []byte(name+":1;")...)
+		}
+	}
+	// delete trailing ;
+	res[len(res)-1] = ' '
+	return string(res), nil
+}
+
+// fField adds the file name data comes from to output table
+func vintField(td *chutils.TableDef, data chutils.Row, valid chutils.Valid, validate bool) (interface{}, error) {
+	ind, _, err := td.Get("fpDt")
+	if err != nil {
+		return nil, err
+	}
+	fpd := data[ind].(time.Time)
+	var qtr = int((fpd.Month()-1)/3 + 1)
+	vintage := fmt.Sprintf("%dQ%d", fpd.Year(), qtr)
+	return vintage, nil
+}
+
+// fileName is global since used as a closure to fField
+var fileName string
+
+// fField returns the name of the file the data is loaded from
+func fField(td *chutils.TableDef, data chutils.Row, valid chutils.Valid, validate bool) (interface{}, error) {
+	return fileName, nil
+}
+
+// pvField calculate property value from ltv
+func pvField(td *chutils.TableDef, data chutils.Row, valid chutils.Valid, validate bool) (interface{}, error) {
+	ltvInd, _, err := td.Get("ltv")
+	if err != nil {
+		return nil, err
+	}
+	if valid[ltvInd] != chutils.VPass {
+		return -1.0, nil
+	}
+	ltv := float32(data[ltvInd].(int32))
+
+	opbInd, _, err := td.Get("opb")
+	if valid[opbInd] != chutils.VPass {
+		return -1.0, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	opb := data[opbInd].(float32)
+	return opb / (ltv / 100.0), nil
+}
+
+// build builds the TableDef for the static field files.
+func build() *chutils.TableDef {
 	var (
 		// date ranges & missing value
 		minDt  = time.Date(1999, 1, 1, 0, 0, 0, 0, time.UTC)

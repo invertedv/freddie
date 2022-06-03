@@ -1,6 +1,8 @@
+// Package joined joins the static and monthly tables created by the static and monthly packages
 package joined
 
 import (
+	"fmt"
 	"github.com/invertedv/chutils"
 	s "github.com/invertedv/chutils/sql"
 	mon "github.com/invertedv/freddie/monthly"
@@ -10,20 +12,27 @@ import (
 )
 
 func Load(monthly string, static string, table string, tmpDB string, create bool, con *chutils.Connect) error {
+	// load static data into temp table
 	tmpStatic := tmpDB + ".static"
-	tmpMonthly := tmpDB + ".monthly"
 	if err := stat.LoadRaw(static, tmpStatic, true, con); err != nil {
 		log.Fatalln(err)
 	}
+	// load monthly data into temp table
+	tmpMonthly := tmpDB + ".monthly"
 	if err := mon.LoadRaw(monthly, tmpMonthly, true, 12, con); err != nil {
 		log.Fatalln(err)
 	}
 
+	// fill in placeholders in the JOIN query
 	qryUse := strings.Replace(strings.Replace(qry, "tmpMonthly", tmpMonthly, -1), "tmpStatic", tmpStatic, -1)
+
+	// build sql reader
 	srdr := s.NewReader(qryUse, con)
+	// initialize the TableDef
 	if e := srdr.Init("lnId", chutils.MergeTree); e != nil {
 		log.Fatalln(e)
 	}
+	// fill in the descriptions of the fields
 	for _, fd := range srdr.TableSpec().FieldDefs {
 		if _, fd1, e := stat.TableDef.Get(fd.Name); e == nil {
 			fd.Description = fd1.Description
@@ -44,11 +53,11 @@ func Load(monthly string, static string, table string, tmpDB string, create bool
 			fd.ChSpec.Funcs = chutils.OuterFuncs{chutils.OuterLowCardinality}
 		}
 	}
-
+	// Nested arrays for the monthly data
 	if e := srdr.TableSpec().Nest("monthly", "month", "bap"); e != nil {
 		log.Fatalln(e)
 	}
-
+	// Nested arrays for modifications data
 	if e := srdr.TableSpec().Nest("mod", "modMonth", "stepMod"); e != nil {
 		log.Fatalln(e)
 	}
@@ -59,13 +68,22 @@ func Load(monthly string, static string, table string, tmpDB string, create bool
 			log.Fatalln(e)
 		}
 	}
+	// Insert the data into the table
 	if e := srdr.Insert(); e != nil {
+		log.Fatalln(e)
+	}
+	// clean up
+	if _, e := con.Exec(fmt.Sprintf("DROP TABLE %s", tmpStatic)); e != nil {
+		log.Fatalln(e)
+	}
+	if _, e := con.Exec(fmt.Sprintf("DROP TABLE %s", tmpMonthly)); e != nil {
 		log.Fatalln(e)
 	}
 
 	return nil
 }
 
+// qry is the query that does the join
 const qry = `
 WITH v AS (
 SELECT
@@ -167,7 +185,6 @@ JOIN (
         max(zbUpb) AS zbUpb,
         max(fileMonthly) AS fileMonthly,
 
-//        groupArray(dqDis = 'Y' ? aaa.month : Null) AS dqDis,
         groupArray(if(abs(fclLoss) + abs(fclExp) + abs(fclProNet+fclProMi+fclProMw) = 0.0 , Null, aaa.month)) AS fclMonth,
         groupArray(if(abs(fclLoss) + abs(fclExp) + abs(fclProNet+fclProMi+fclProMw) = 0.0, Null, fclProNet)) AS fclProNet1,
         groupArray(if(abs(fclLoss) + abs(fclExp) + abs(fclProNet+fclProMi+fclProMw) = 0.0, Null, fclProMi)) AS fclProMi1,

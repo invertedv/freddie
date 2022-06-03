@@ -1,3 +1,4 @@
+// Package monthly loads a single quarter of monthly data into ClickHouse
 package monthly
 
 import (
@@ -14,9 +15,10 @@ import (
 
 var TableDef *chutils.TableDef
 
-// LoadRaw loads the raw monthly series
-func LoadRaw(fileN string, table string, create bool, nConcur int, con *chutils.Connect) (err error) {
-	fileName = fileN
+// LoadRaw loads the raw monthly series from sourceFile into "table".  The table is created/reset if create=true.
+// The file is loaded using nConcur concurrent processes.  con is the ClickHouse connector.
+func LoadRaw(sourceFile string, table string, create bool, nConcur int, con *chutils.Connect) (err error) {
+	fileName = sourceFile
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -27,8 +29,14 @@ func LoadRaw(fileN string, table string, create bool, nConcur int, con *chutils.
 	}
 	rdr := file.NewReader(fileName, '|', '\n', '"', 0, 0, 0, f, 6000000)
 	rdr.Skip = 0
-	defer rdr.Close()
-	rdr.SetTableSpec(Build())
+	defer func() {
+		// don't throw an error if we already have one
+		if e := rdr.Close(); e != nil && err == nil {
+			err = e
+		}
+	}()
+	// rdr is the base reader the slice of readers is based on
+	rdr.SetTableSpec(build())
 
 	// build slice of readers
 	rdrs, err := file.Rdrs(rdr, nConcur)
@@ -37,6 +45,7 @@ func LoadRaw(fileN string, table string, create bool, nConcur int, con *chutils.
 	}
 
 	var wrtrs []chutils.Output
+	// build a slice of writers
 	if wrtrs, err = s.Wrtrs(table, nConcur, con); err != nil {
 		return
 	}
@@ -44,10 +53,14 @@ func LoadRaw(fileN string, table string, create bool, nConcur int, con *chutils.
 	newCalcs := make([]nested.NewCalcFn, 0)
 	newCalcs = append(newCalcs, vField, fField, dqField, reoField)
 
+	// rdrsn is a slice of nested readers -- needed since we are adding fields to the raw data
 	rdrsn := make([]chutils.Input, 0)
 	for j, r := range rdrs {
-		defer r.Close()
-		defer wrtrs[j].Close()
+		defer func() {
+			if e := r.Close(); e != nil && err == nil {
+				err = e
+			}
+		}()
 
 		rn, e := nested.NewReader(r, xtraFields(), newCalcs)
 		if e != nil {
@@ -71,6 +84,7 @@ func LoadRaw(fileN string, table string, create bool, nConcur int, con *chutils.
 	return
 }
 
+// xtraFields defines additional fields for the nested reader
 func xtraFields() (fds []*chutils.FieldDef) {
 	vfd := &chutils.FieldDef{
 		Name:        "qaMonthly",
@@ -108,7 +122,7 @@ func xtraFields() (fds []*chutils.FieldDef) {
 	return
 }
 
-// gives the validation results for each field -- 0 = pass, 1 = value fail, 2 = type fail
+// vField returns the validation results for each field -- 0 = pass, 1 = fail in a string which has a  keyval format
 func vField(td *chutils.TableDef, data chutils.Row, valid chutils.Valid, validate bool) (interface{}, error) {
 	res := make([]byte, 0)
 	for ind, v := range valid {
@@ -130,12 +144,12 @@ func vField(td *chutils.TableDef, data chutils.Row, valid chutils.Valid, validat
 // fileName is global since used as a closure to fField
 var fileName string
 
-// fField adds the file name data comes from to output table
+// fField returns the name of the file we're loading
 func fField(td *chutils.TableDef, data chutils.Row, valid chutils.Valid, validate bool) (interface{}, error) {
 	return fileName, nil
 }
 
-// dqField adds the delinquency level as an integer
+// dqField returns the delinquency level as an integer
 func dqField(td *chutils.TableDef, data chutils.Row, valid chutils.Valid, validate bool) (interface{}, error) {
 	ind, _, err := td.Get("dqStat")
 	if err != nil {
@@ -148,7 +162,7 @@ func dqField(td *chutils.TableDef, data chutils.Row, valid chutils.Valid, valida
 	return int32(dq), nil
 }
 
-// dqField adds the delinquency level as an integer
+// dqField returns REO status as a Y/N flag
 func reoField(td *chutils.TableDef, data chutils.Row, valid chutils.Valid, validate bool) (interface{}, error) {
 	ind, _, err := td.Get("dqStat")
 	if err != nil {
@@ -161,7 +175,8 @@ func reoField(td *chutils.TableDef, data chutils.Row, valid chutils.Valid, valid
 	return res, nil
 }
 
-func Build() *chutils.TableDef {
+// build builds the TableDef for the monthly field files.
+func build() *chutils.TableDef {
 	var (
 		minDt   = time.Date(1990, 1, 1, 0, 0, 0, 0, time.UTC)
 		maxDt   = time.Now()
