@@ -23,9 +23,9 @@ func ExampleLoad() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	var name, ftype, default_type, default_expression, comment, n1, n2 string
+	var name, ftype, defaultType, defaultExpression, comment, n1, n2 string
 	for rows.Next() {
-		if e := rows.Scan(&name, &ftype, &default_type, &default_expression, &comment, &n1, &n2); e != nil {
+		if e := rows.Scan(&name, &ftype, &defaultType, &defaultExpression, &comment, &n1, &n2); e != nil {
 			log.Fatalln(e)
 		}
 		s := strings.TrimRight(fmt.Sprintf("%-20s %-25s %s", name, ftype, comment), " ")
@@ -68,6 +68,7 @@ func ExampleLoad() {
 	//fileStatic           LowCardinality(String)    file static data loaded from
 	//vintage              LowCardinality(String)    vintage (from fpDt)
 	//propVal              Float32                   property value at origination
+	//standard             LowCardinality(String)    standard u/w process loan: Y, N
 	//monthly.month        Array(Date)               month of data, missing=1970/1/1
 	//monthly.upb          Array(Float32)            unpaid balance, missing=-1
 	//monthly.dq           Array(Int32)              months delinquent

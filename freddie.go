@@ -1,4 +1,4 @@
-// package main.  This package imports the loan-level residential mortgage data provided by Freddie Mac into ClickHouse.
+// package freddie.  This package imports the loan-level residential mortgage data provided by Freddie Mac into ClickHouse.
 // The data is available here: https://www.freddiemac.com/research/datasets/sf-loanlevel-dataset.
 //
 // The final result is a single data with nested arrays for time-varying fields.
@@ -6,30 +6,39 @@
 //   - The data is subject to QA.  The results are presented as two string fields in a KeyVal format.
 //   - A "DESCRIBE" of the output table provides info on each field
 //   - New fields created are:
+//      - vintage (e.g. 2010Q2)
+//      - standard - Y/N flag, Y=standard process loan
 //      - loan age based on first pay date
 //      - numeric dq field
 //      - reo flag
-//      - vintage (e.g. 2010Q2)
 //      - property value at origination
 //      - file names from which the loan was loaded
 //      - QA results
 //           - There are two fields -- one for monthly data and one for static data.
-//           - The QA results are in keyval format: <field name>:<result>.  result: 0 if pass, 1 if fail.
+//           - The QA results are in keyval format: <field name>:<result>.  result: 0 if passes, 1 if fails.
+//           - The flag is set to 1 if any of the values of a monthly field fails.
 //
 // command-line parameters:
-//   -host  ClickHouse IP address
-//   -user  ClickHouse user
-//   -password ClickHouse password for user
-//   -table ClickHouse table in which to insert the data
-//   -create if Y, then the table is created/reset.
-//   -dir directory with Freddie Mac text files
-//   -tmp ClickHouse database to use for temporary tables
+//   -host  ClickHouse IP address. Default: 127.0.0.1.
+//   -user  ClickHouse user. Default: default
+//   -password ClickHouse password for user. Default: <empty>.
+//   -table ClickHouse table in which to insert the data.
+//   -create if Y, then the table is created/reset. Default: Y.
+//   -dir directory with Freddie Mac text files.
+//   -tmp ClickHouse database to use for temporary tables.
+//   -concur # of concurrent processes to use in loading monthly files. Default: 1.
+//   -memory max memory usage by ClickHouse.  Default: 40000000000.
+//   -groupby max_bytes_before_external_groupby ClickHouse paramter. Default: 20000000000.
 //
 // Since the standard and non-standard datasets have the same format, this utility can be used to create tables
 // using either source.  A combined table can be built by running the app twice pointing to the same -table.
 // On the first run, set -create Y and set -create N for the second run.
 //
 // Look at the example in the joined package for the DESCRIBE output of the table.
+//
+// Note that the table produced by this package has slightly fewer loans than the check figures provided by Freddie.
+// The difference seems to be that there are some loans in the static file that are not in the monthly file.
+// With data through 2021Q3, this totals 1484 standard loans (HARP and non-HARP), and 207 non-standard loans.
 package main
 
 import (
@@ -48,12 +57,15 @@ import (
 func main() {
 	var err error
 	host := flag.String("host", "127.0.0.1", "string")
-	user := flag.String("user", "", "string")
+	user := flag.String("user", "default", "string")
 	password := flag.String("password", "", "string")
 	srcDir := flag.String("dir", "", "string")
 	create := flag.String("create", "Y", "string")
 	table := flag.String("table", "", "string")
 	tmp := flag.String("tmp", "", "string")
+	nConcur := flag.Int("concur", 1, "int")
+	max_memory := flag.Int64("memory", 40000000000, "int64")
+	max_groupby := flag.Int64("groupby", 20000000000, "int64")
 
 	// Each quarter of data consists of two files: one for static data, one for monthly data
 	type filePair struct {
@@ -68,8 +80,8 @@ func main() {
 	}
 	// connect to ClickHouse
 	con, err := chutils.NewConnect(*host, *user, *password, clickhouse.Settings{
-		"max_memory_usage":                   40000000000,
-		"max_bytes_before_external_group_by": 20000000000,
+		"max_memory_usage":                   *max_memory,
+		"max_bytes_before_external_group_by": *max_groupby,
 	})
 	if err != nil {
 		log.Fatalln(err)
@@ -119,10 +131,9 @@ func main() {
 	start := time.Now()
 	createTable := *create == "Y" || *create == "y"
 	for ind, k := range keys {
-		if e := joined.Load(fileList[k].Monthly, fileList[k].Static, *table, *tmp, createTable, con); e != nil {
+		if e := joined.Load(fileList[k].Monthly, fileList[k].Static, *table, *tmp, createTable, *nConcur, con); e != nil {
 			log.Fatalln(e)
 		}
-
 		createTable = false
 		fmt.Printf("Done with quarter %s. %d out of %d \n", k, ind+1, len(keys))
 	}

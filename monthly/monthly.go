@@ -7,21 +7,19 @@ import (
 	"github.com/invertedv/chutils/file"
 	"github.com/invertedv/chutils/nested"
 	s "github.com/invertedv/chutils/sql"
-	"log"
 	"os"
 	"strconv"
 	"time"
 )
 
+// TableDef is TableDef for the monthly table.  It is exported as other packages (e.g. joined) may need fields from
+// it (e.g. Description)
 var TableDef *chutils.TableDef
 
 // LoadRaw loads the raw monthly series from sourceFile into "table".  The table is created/reset if create=true.
 // The file is loaded using nConcur concurrent processes.  con is the ClickHouse connector.
 func LoadRaw(sourceFile string, table string, create bool, nConcur int, con *chutils.Connect) (err error) {
 	fileName = sourceFile
-	if err != nil {
-		log.Fatalln(err)
-	}
 
 	f, err := os.Open(fileName)
 	if err != nil {
@@ -56,11 +54,6 @@ func LoadRaw(sourceFile string, table string, create bool, nConcur int, con *chu
 	// rdrsn is a slice of nested readers -- needed since we are adding fields to the raw data
 	rdrsn := make([]chutils.Input, 0)
 	for j, r := range rdrs {
-		defer func() {
-			if e := r.Close(); e != nil && err == nil {
-				err = e
-			}
-		}()
 
 		rn, e := nested.NewReader(r, xtraFields(), newCalcs)
 		if e != nil {

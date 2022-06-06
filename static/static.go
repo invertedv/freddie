@@ -11,11 +11,12 @@ import (
 	"time"
 )
 
-// TableDef is the *chutils.TableDef of the nested reader
+// TableDef is TableDef for the static table.  It is exported as other packages (e.g. joined) may need fields from
+// it (e.g. Description)
 var TableDef *chutils.TableDef
 
-// LoadRaw loads the static data "filen" into "table".  The table is created/reset if create=true. con is the
-// connector to ClickHouse.
+// LoadRaw loads the static data from file sourceFile into "table".  The table is created/reset if create=true. con
+//is the connector to ClickHouse.
 func LoadRaw(sourceFile string, table string, create bool, con *chutils.Connect) (err error) {
 	fileName = sourceFile // fileName is global to the package so we have it to add as a field
 

@@ -7,20 +7,22 @@ import (
 	s "github.com/invertedv/chutils/sql"
 	mon "github.com/invertedv/freddie/monthly"
 	stat "github.com/invertedv/freddie/static"
-	"log"
 	"strings"
 )
 
-func Load(monthly string, static string, table string, tmpDB string, create bool, con *chutils.Connect) error {
+// func Load loads the monthly and static files into tmpDB.monthly & tmpDB.static, then joins them and inserts
+// the output into "table".  If create="Y", table is created/reset.  The monthly file is read/loaded using
+// nConcur processes.
+func Load(monthly string, static string, table string, tmpDB string, create bool, nConcur int, con *chutils.Connect) error {
 	// load static data into temp table
 	tmpStatic := tmpDB + ".static"
-	if err := stat.LoadRaw(static, tmpStatic, true, con); err != nil {
-		log.Fatalln(err)
+	if e := stat.LoadRaw(static, tmpStatic, true, con); e != nil {
+		return e
 	}
 	// load monthly data into temp table
 	tmpMonthly := tmpDB + ".monthly"
-	if err := mon.LoadRaw(monthly, tmpMonthly, true, 12, con); err != nil {
-		log.Fatalln(err)
+	if e := mon.LoadRaw(monthly, tmpMonthly, true, nConcur, con); e != nil {
+		return e
 	}
 
 	// fill in placeholders in the JOIN query
@@ -30,7 +32,7 @@ func Load(monthly string, static string, table string, tmpDB string, create bool
 	srdr := s.NewReader(qryUse, con)
 	// initialize the TableDef
 	if e := srdr.Init("lnId", chutils.MergeTree); e != nil {
-		log.Fatalln(e)
+		return e
 	}
 	// fill in the descriptions of the fields
 	for _, fd := range srdr.TableSpec().FieldDefs {
@@ -40,6 +42,7 @@ func Load(monthly string, static string, table string, tmpDB string, create bool
 		if _, fd1, e := mon.TableDef.Get(fd.Name); e == nil {
 			fd.Description = fd1.Description
 		}
+		// new fields
 		switch fd.Name {
 		case "modMonth":
 			fd.Description = "month of modification"
@@ -47,6 +50,8 @@ func Load(monthly string, static string, table string, tmpDB string, create bool
 			fd.Description = "month of foreclosure resolution"
 		case "ageFpDt":
 			fd.Description = "age based on fdDt, missing=-1000"
+		case "standard":
+			fd.Description = "standard u/w process loan: Y, N"
 		case "qaMonthly":
 			fd.ChSpec.Funcs = chutils.OuterFuncs{chutils.OuterLowCardinality}
 		case "valStatic":
@@ -55,29 +60,30 @@ func Load(monthly string, static string, table string, tmpDB string, create bool
 	}
 	// Nested arrays for the monthly data
 	if e := srdr.TableSpec().Nest("monthly", "month", "bap"); e != nil {
-		log.Fatalln(e)
+		return e
 	}
 	// Nested arrays for modifications data
 	if e := srdr.TableSpec().Nest("mod", "modMonth", "stepMod"); e != nil {
-		log.Fatalln(e)
+		return e
 	}
 
 	srdr.Name = table
 	if create {
 		if e := srdr.TableSpec().Create(con, srdr.Name); e != nil {
-			log.Fatalln(e)
+			return e
 		}
 	}
 	// Insert the data into the table
 	if e := srdr.Insert(); e != nil {
-		log.Fatalln(e)
+		return e
 	}
+
 	// clean up
 	if _, e := con.Exec(fmt.Sprintf("DROP TABLE %s", tmpStatic)); e != nil {
-		log.Fatalln(e)
+		return e
 	}
 	if _, e := con.Exec(fmt.Sprintf("DROP TABLE %s", tmpMonthly)); e != nil {
-		log.Fatalln(e)
+		return e
 	}
 
 	return nil
@@ -115,6 +121,7 @@ FROM(
 GROUP BY lnId))
 SELECT
     s.*,
+    position(fileStatic, 'excl') = 0 ? 'Y' : 'N' AS standard,
     m.month,
     m.upb,
 //    m.dqStat,
@@ -208,5 +215,3 @@ ON s.lnId = m.lnId
 JOIN v
 ON s.lnId = v.lnId
 `
-
-//TODO - change defers to funcs with _ = xyz.Close() to get it to stop complaining
