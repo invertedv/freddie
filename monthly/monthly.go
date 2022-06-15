@@ -49,7 +49,7 @@ func LoadRaw(sourceFile string, table string, create bool, nConcur int, con *chu
 	}
 
 	newCalcs := make([]nested.NewCalcFn, 0)
-	newCalcs = append(newCalcs, vField, fField, dqField, reoField)
+	newCalcs = append(newCalcs, fField, dqField, reoField, vField)
 
 	// rdrsn is a slice of nested readers -- needed since we are adding fields to the raw data
 	rdrsn := make([]chutils.Input, 0)
@@ -90,7 +90,7 @@ func xtraFields() (fds []*chutils.FieldDef) {
 	ffd := &chutils.FieldDef{
 		Name:        "fileMonthly",
 		ChSpec:      chutils.ChField{Base: chutils.ChString, Funcs: chutils.OuterFuncs{chutils.OuterLowCardinality}},
-		Description: "file monthly data loaded from",
+		Description: "source file for monthly data",
 		Legal:       chutils.NewLegalValues(),
 		Missing:     "!",
 		Width:       0,
@@ -111,27 +111,24 @@ func xtraFields() (fds []*chutils.FieldDef) {
 		Missing:     "!",
 		Width:       0,
 	}
-	fds = []*chutils.FieldDef{vfd, ffd, dqfd, reofd}
+	fds = []*chutils.FieldDef{ffd, dqfd, reofd, vfd}
 	return
 }
 
 // vField returns the validation results for each field -- 0 = pass, 1 = fail in a string which has a  keyval format
 func vField(td *chutils.TableDef, data chutils.Row, valid chutils.Valid, validate bool) (interface{}, error) {
 	res := make([]byte, 0)
+	res = append(res, []byte(":")...)
 	for ind, v := range valid {
 		name := td.FieldDefs[ind].Name
-		// space is a valid answer, so let's put in a character
-
-		switch v {
-		case chutils.VPass, chutils.VDefault:
-			res = append(res, []byte(name+":0;")...)
-		default:
-			res = append(res, []byte(name+":1;")...)
+		if v != chutils.VPass && v != chutils.VDefault {
+			res = append(res, []byte(name+":")...)
 		}
 	}
-	// delete trailing ;
-	res[len(res)-1] = ' '
-	return string(res), nil
+	if len(res) > 1 {
+		return string(res), nil
+	}
+	return "", nil
 }
 
 // fileName is global since used as a closure to fField
@@ -280,7 +277,7 @@ func build() *chutils.TableDef {
 	fd = &chutils.FieldDef{
 		Name:        "dqStat",
 		ChSpec:      chutils.ChField{Base: chutils.ChFixedString, Length: 3},
-		Description: "DQ status code: 0-100 months, RA (REO), missing=" + dqStatMiss,
+		Description: "DQ status code: 0-999 months, RA (REO), missing=" + dqStatMiss,
 		Legal:       &chutils.LegalValues{Levels: dqStatLvl},
 		Missing:     dqStatMiss,
 	}

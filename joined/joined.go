@@ -44,6 +44,8 @@ func Load(monthly string, static string, table string, tmpDB string, create bool
 		}
 		// new fields
 		switch fd.Name {
+		case "zip3":
+			fd.Description = "3 digit zip"
 		case "modMonth":
 			fd.Description = "month of modification"
 		case "fclMonth":
@@ -52,10 +54,14 @@ func Load(monthly string, static string, table string, tmpDB string, create bool
 			fd.Description = "age based on fdDt, missing=-1000"
 		case "standard":
 			fd.Description = "standard u/w process loan: Y, N"
-		case "qaMonthly":
-			fd.ChSpec.Funcs = chutils.OuterFuncs{chutils.OuterLowCardinality}
-		case "valStatic":
-			fd.ChSpec.Funcs = chutils.OuterFuncs{chutils.OuterLowCardinality}
+		case "field":
+			fd.ChSpec.Funcs = append(fd.ChSpec.Funcs, chutils.OuterLowCardinality)
+			fd.Description = "failed qa: field name array"
+		case "cntFail":
+			fd.Description = "# months that failed qa"
+		case "allFail":
+			fd.ChSpec.Funcs = append(fd.ChSpec.Funcs, chutils.OuterLowCardinality)
+			fd.Description = "fields that failed qa all months"
 		}
 	}
 	// Nested arrays for the monthly data
@@ -64,6 +70,9 @@ func Load(monthly string, static string, table string, tmpDB string, create bool
 	}
 	// Nested arrays for modifications data
 	if e := srdr.TableSpec().Nest("mod", "modMonth", "stepMod"); e != nil {
+		return e
+	}
+	if e := srdr.TableSpec().Nest("qa", "field", "cntFail"); e != nil {
 		return e
 	}
 
@@ -85,42 +94,74 @@ func Load(monthly string, static string, table string, tmpDB string, create bool
 	if _, e := con.Exec(fmt.Sprintf("DROP TABLE %s", tmpMonthly)); e != nil {
 		return e
 	}
-
 	return nil
 }
 
 // qry is the query that does the join
 const qry = `
-WITH v AS (
-SELECT
-    lnId,
-    arrayStringConcat(arrayMap(x,y -> concat(x, ':', toString(y)), field, validation), ';') as x
-FROM ( 
-SELECT
-    lnId,
-    groupArray(f) AS field,
-    groupArray(v) AS validation
-FROM(    
-    SELECT
-      lnId,
-      field AS f,
-      Max(valid) AS v
+WITH qMonthly AS (
+    SELECT 
+        lnId, 
+        groupArray(grp) AS qa,
+        groupArray(n) AS nqa
     FROM (
-        SELECT
-            lnId,
-            arrayElement(splitByChar(':', v), 1) AS field,
-            substr(arrayElement(splitByChar(':', v), 2), 1, 1) = '0' ? 0 : 1 AS valid
-        FROM (    
-            SELECT
-                lnId,
-                arrayJoin(splitByChar(';', qaMonthly)) AS v
-            FROM
-                tmpMonthly))
-     GROUP BY lnId, field
-     ORDER BY lnId, field)
-GROUP BY lnId))
+        SELECT 
+            lnId, 
+            arrayJoin(splitByChar(':', qaMonthly)) AS grp,
+            toInt32(count(*)) AS n
+        FROM tmpMonthly 
+        WHERE grp != ''
+        GROUP BY lnId, grp)
+    GROUP BY lnId),
+qStatic AS (
+    SELECT 
+        lnId, 
+        groupArray(grp) AS qa,
+        groupArray(n) AS nqa
+    FROM (
+        SELECT 
+            lnId, 
+            arrayJoin(splitByChar(':', qaStatic)) AS grp,
+            toInt32(count(*)) AS n
+        FROM tmpStatic 
+        WHERE grp != ''
+        GROUP BY lnId, grp)
+    GROUP BY lnId)
 SELECT
-    s.*,
+    fico,
+    fpDt,
+    firstTime,
+    matDt,
+    msaD,
+    mi,
+    units,
+    occ,
+    cltv,
+    dti,
+    opb,
+    ltv,
+    rate,
+    channel,
+    pPen,
+    amType,
+    state,
+    propType,
+    substr(zip, 1, 3) AS zip3,
+    s.lnId,
+    purpose,
+    term,
+    numBorr,
+    seller,
+    servicer,
+    sConform,
+    preHARPlnId,
+    program,
+    harp,
+    valMthd,
+    io,
+    fileStatic,
+    vintage,
+    propVal,
     position(fileStatic, 'excl') = 0 ? 'Y' : 'N' AS standard,
     m.month,
     m.upb,
@@ -162,7 +203,10 @@ SELECT
     m.modMonth,
     m.modCLoss1 AS modCLoss,
     m.stepMod1 AS stepMod,
-    v.x AS qaMonthly
+    arrayConcat(qStatic.qa, qMonthly.qa) AS field,
+    arrayConcat(qStatic.nqa, qMonthly.nqa) AS cntFail,
+    arrayConcat(qStatic.qa,
+         arrayFilter((x,y) -> y=length(month) ? 1 : 0, qMonthly.qa, qMonthly.nqa)) AS allFail
 FROM
     tmpStatic AS s
 JOIN (
@@ -212,6 +256,8 @@ JOIN (
         tmpMonthly ORDER BY lnId, month) AS aaa
     GROUP BY lnId) AS m
 ON s.lnId = m.lnId
-JOIN v
-ON s.lnId = v.lnId
+LEFT JOIN qMonthly 
+ON s.lnId = qMonthly.lnId
+LEFT JOIN qStatic
+ON s.lnId = qStatic.lnId
 `
