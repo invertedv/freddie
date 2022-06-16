@@ -13,10 +13,12 @@
 //      - reo flag
 //      - property value at origination
 //      - file names from which the loan was loaded
-//      - QA results
-//           - There are two fields -- one for monthly data and one for static data.
-//           - The QA results are in keyval format: <field name>:<result>.  result: 0 if passes, 1 if fails.
-//           - The flag is set to 1 if any of the values of a monthly field fails.
+//      - QA results. There are three sets of fields:
+//          - The nested table qa that has two arrays:
+//                - field.  The name of a field that has validation issues.
+//                - cntFail. The number of months for which this field failed qa.  For static fields, this value will
+//                   be 1.
+//           - allFail.  An array of field names which failed for qa.  For monthly fields, this means the field failed for all months.
 //
 // command-line parameters:
 //   -host  ClickHouse IP address. Default: 127.0.0.1.
@@ -131,11 +133,13 @@ func main() {
 	start := time.Now()
 	createTable := *create == "Y" || *create == "y"
 	for ind, k := range keys {
+		s := time.Now()
 		if e := joined.Load(fileList[k].Monthly, fileList[k].Static, *table, *tmp, createTable, *nConcur, con); e != nil {
 			log.Fatalln(e)
 		}
 		createTable = false
-		fmt.Printf("Done with quarter %s. %d out of %d \n", k, ind+1, len(keys))
+
+		fmt.Printf("Done with quarter %s. %d out of %d: time %0.2f minutes\n", k, ind+1, len(keys), time.Since(s).Minutes())
 	}
-	fmt.Println("elapsed time", time.Since(start))
+	fmt.Printf("elapsed time: %0.2f hours\n", time.Since(start).Hours())
 }

@@ -586,7 +586,7 @@ func build() *chutils.TableDef {
 	fds[25] = fd
 
 	fd = &chutils.FieldDef{
-		Name:        "preHARPlnId",
+		Name:        "preHarpLnId",
 		ChSpec:      chutils.ChField{Base: chutils.ChString, Length: 0},
 		Description: "for HARP loans, lnId of prior loan, missing=" + lnIdMiss,
 		Legal:       &chutils.LegalValues{},
