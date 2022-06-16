@@ -154,7 +154,7 @@ SELECT
     seller,
     servicer,
     sConform,
-    preHARPlnId,
+    preHarpLnId,
     program,
     harp,
     valMthd,
