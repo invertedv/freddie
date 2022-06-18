@@ -46,6 +46,7 @@ func Load(monthly string, static string, table string, tmpDB string, create bool
 		switch fd.Name {
 		case "zip3":
 			fd.Description = "3 digit zip"
+			fd.ChSpec.Base, fd.ChSpec.Length = chutils.ChFixedString, 3
 		case "modMonth":
 			fd.Description = "month of modification"
 		case "fclMonth":

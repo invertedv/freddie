@@ -77,7 +77,7 @@ func xtraFields() (fds []*chutils.FieldDef) {
 	}
 	vintfd := &chutils.FieldDef{
 		Name:        "vintage",
-		ChSpec:      chutils.ChField{Base: chutils.ChString, Funcs: chutils.OuterFuncs{chutils.OuterLowCardinality}},
+		ChSpec:      chutils.ChField{Base: chutils.ChFixedString, Length: 6, Funcs: chutils.OuterFuncs{chutils.OuterLowCardinality}},
 		Description: "vintage (from fpDt)",
 		Legal:       chutils.NewLegalValues(),
 		Missing:     "!",
@@ -524,7 +524,7 @@ func build() *chutils.TableDef {
 	fd = &chutils.FieldDef{
 		Name:        "lnId",
 		ChSpec:      chutils.ChField{Base: chutils.ChString},
-		Description: "Loan ID PYYQnXXXXXXX P=F or A YY=year, n=quarter, missing=" + lnIdMiss,
+		Description: "loan ID PYYQnXXXXXXX P=F or A YY=year, n=quarter, missing=" + lnIdMiss,
 		Legal:       &chutils.LegalValues{},
 		Missing:     lnIdMiss,
 	}

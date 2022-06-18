@@ -11,10 +11,11 @@ The package performs QA on the data as well as adding a handful of extra fields:
     - reo flag
     - property value at origination
     - file names from which the loan was loaded
-    - QA results
-         - There are two fields -- one for monthly data and one for static data.
-         - The QA results are in keyval format: <field name>:<result>.  result: 0 if pass, 1 if fail.
-         - The flag is set to 1 if any of the values of a monthly field fails.
+    - QA results. There are three sets of fields:
+          - The nested table qa that has two arrays:
+                - field.  The name of a field that has validation issues.
+                - cntFail. The number of months for which this field failed qa.  For static fields, this value will be 1.
+           - allFail.  An array of field names which failed for qa.  For monthly fields, this means the field failed for all months.
 
 The command-line parameters are:
 
@@ -42,7 +43,7 @@ The command-line parameters are:
 Since the standard and non-standard data provided by Freddie Mac have the same format, both sets can be imported
 by this code either as a single table or two tables.  To create a single table, run the app with 
 
-  -create Y
+   -create Y
 
 for the first data source (*e.g.* standard) and
 

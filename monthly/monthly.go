@@ -250,7 +250,7 @@ func build() *chutils.TableDef {
 	fd := &chutils.FieldDef{
 		Name:        "lnId",
 		ChSpec:      chutils.ChField{Base: chutils.ChString},
-		Description: "Loan ID PYYQnXXXXXXX P=F or A YY=year, n=quarter, missing=" + lnIdMiss,
+		Description: "loan ID PYYQnXXXXXXX P=F or A YY=year, n=quarter, missing=" + lnIdMiss,
 		Legal:       &chutils.LegalValues{},
 		Missing:     lnIdMiss,
 	}
