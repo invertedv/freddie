@@ -16,7 +16,7 @@ import (
 var TableDef *chutils.TableDef
 
 // LoadRaw loads the static data from file sourceFile into "table".  The table is created/reset if create=true. con
-//is the connector to ClickHouse.
+// is the connector to ClickHouse.
 func LoadRaw(sourceFile string, table string, create bool, con *chutils.Connect) (err error) {
 	fileName = sourceFile // fileName is global to the package so we have it to add as a field
 
@@ -53,7 +53,7 @@ func LoadRaw(sourceFile string, table string, create bool, con *chutils.Connect)
 	}
 
 	wrtr := s.NewWriter(table, con)
-	if err = chutils.Export(nrdr, wrtr, 400000); err != nil {
+	if err = chutils.Export(nrdr, wrtr, 400000, false); err != nil {
 		return
 	}
 	return nil
@@ -334,7 +334,7 @@ func build() *chutils.TableDef {
 
 		programMiss = strMiss
 		programDef  = "9"
-		programLvl  = []string{"H", "9"}
+		programLvl  = []string{"H", "F", "R", "9"}
 
 		harpMiss = strMiss
 		harpDef  = "N"
@@ -597,7 +597,7 @@ func build() *chutils.TableDef {
 	fd = &chutils.FieldDef{
 		Name:        "program",
 		ChSpec:      chutils.ChField{Base: chutils.ChFixedString, Length: 1},
-		Description: "freddie program: H (home possible) N (no program), missing=" + programMiss,
+		Description: "freddie program: H (home possible) N (no program), F (HFA), R (refi possible) missing=" + programMiss,
 		Legal:       &chutils.LegalValues{Levels: programLvl},
 		Missing:     programMiss,
 		Default:     programDef,

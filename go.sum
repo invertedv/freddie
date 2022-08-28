@@ -44,6 +44,8 @@ github.com/invertedv/chutils v0.2.1 h1:maqWU3EtntyxI1xNH2OZWwD/Ui0JMTf5ET62mKAxy
 github.com/invertedv/chutils v0.2.1/go.mod h1:alK+MOz3p0oKavXRhTph7P+m6Sy5i8wYRlDNiaJKV7Q=
 github.com/invertedv/chutils v0.2.2 h1:TT0cJaI56ysThd48DXGc90P3kxwHE+9mYRAGKKACWlM=
 github.com/invertedv/chutils v0.2.2/go.mod h1:alK+MOz3p0oKavXRhTph7P+m6Sy5i8wYRlDNiaJKV7Q=
+github.com/invertedv/chutils v1.1.10 h1:smUOn5R64H9LRCCY+RKOS+cZxytT94NgHkEIexbI03c=
+github.com/invertedv/chutils v1.1.10/go.mod h1:LbMXKKLJ1kQhsiGDUU7QfVFPTFBo5OdmJ6yAJuXp8gM=
 github.com/jmoiron/sqlx v1.2.0/go.mod h1:1FEQNm3xlJgrMD+FBdI9+xvCksHtbpVBBw5dYhBSsks=
 github.com/kisielk/errcheck v1.5.0/go.mod h1:pFxgyoBC7bSaBwPgfKdkLd5X25qrDl4LWUI2bnpBCr8=
 github.com/kisielk/gotool v1.0.0/go.mod h1:XhKaO+MFFWcvkIS/tQcRk01m1F5IRFswLeQ+oQHNcck=

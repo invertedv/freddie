@@ -1,4 +1,7 @@
 ### package freddie
+[![Go Report Card](https://goreportcard.com/badge/github.com/invertedv/freddie)](https://goreportcard.com/report/github.com/invertedv/freddie)
+[![godoc](https://img.shields.io/badge/go.dev-reference-007d9c?logo=go&logoColor=white)](https://pkg.go.dev/mod/github.com/invertedv/freddie?tab=overview)
+
 This package imports the loan-level historic data into ClickHouse. A single table is built.  Time-varying fields 
 are held in nested arrays in this table.
 
@@ -38,7 +41,7 @@ The command-line parameters are:
     -memory <numb>
         max memory usage by ClickHouse.  Default: 40000000000.
     -groupby <num> 
-        max_bytes_before_external_groupby ClickHouse paramter. Default: 20000000000.
+        max_bytes_before_external_groupby ClickHouse parameter. Default: 20000000000.
 
 Since the standard and non-standard data provided by Freddie Mac have the same format, both sets can be imported
 by this code either as a single table or two tables.  To create a single table, run the app with 

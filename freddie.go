@@ -6,31 +6,32 @@
 //   - The data is subject to QA.  The results are presented as two string fields in a KeyVal format.
 //   - A "DESCRIBE" of the output table provides info on each field
 //   - New fields created are:
-//      - vintage (e.g. 2010Q2)
-//      - standard - Y/N flag, Y=standard process loan
-//      - loan age based on first pay date
-//      - numeric dq field
-//      - reo flag
-//      - property value at origination
-//      - file names from which the loan was loaded
-//      - QA results. There are three sets of fields:
-//          - The nested table qa that has two arrays:
-//                - field.  The name of a field that has validation issues.
-//                - cntFail. The number of months for which this field failed qa.  For static fields, this value will
-//                   be 1.
-//           - allFail.  An array of field names which failed for qa.  For monthly fields, this means the field failed for all months.
+//   - vintage (e.g. 2010Q2)
+//   - standard - Y/N flag, Y=standard process loan
+//   - loan age based on first pay date
+//   - numeric dq field
+//   - reo flag
+//   - property value at origination
+//   - file names from which the loan was loaded
+//   - QA results. There are three sets of fields:
+//   - The nested table qa that has two arrays:
+//   - field.  The name of a field that has validation issues.
+//   - cntFail. The number of months for which this field failed qa.  For static fields, this value will
+//     be 1.
+//   - allFail.  An array of field names which failed for qa.  For monthly fields, this means the field failed for all months.
 //
 // command-line parameters:
-//   -host  ClickHouse IP address. Default: 127.0.0.1.
-//   -user  ClickHouse user. Default: default
-//   -password ClickHouse password for user. Default: <empty>.
-//   -table ClickHouse table in which to insert the data.
-//   -create if Y, then the table is created/reset. Default: Y.
-//   -dir directory with Freddie Mac text files.
-//   -tmp ClickHouse database to use for temporary tables.
-//   -concur # of concurrent processes to use in loading monthly files. Default: 1.
-//   -memory max memory usage by ClickHouse.  Default: 40000000000.
-//   -groupby max_bytes_before_external_groupby ClickHouse paramter. Default: 20000000000.
+//
+//	-host  ClickHouse IP address. Default: 127.0.0.1.
+//	-user  ClickHouse user. Default: default
+//	-password ClickHouse password for user. Default: <empty>.
+//	-table ClickHouse table in which to insert the data.
+//	-create if Y, then the table is created/reset. Default: Y.
+//	-dir directory with Freddie Mac text files.
+//	-tmp ClickHouse database to use for temporary tables.
+//	-concur # of concurrent processes to use in loading monthly files. Default: 1.
+//	-memory max memory usage by ClickHouse.  Default: 40000000000.
+//	-groupby max_bytes_before_external_groupby ClickHouse parameter. Default: 20000000000.
 //
 // Since the standard and non-standard datasets have the same format, this utility can be used to create tables
 // using either source.  A combined table can be built by running the app twice pointing to the same -table.
@@ -76,6 +77,7 @@ func main() {
 	}
 
 	flag.Parse()
+
 	// add trailing slash, if needed
 	if (*srcDir)[len(*srcDir)-1] != '/' {
 		*srcDir += "/"

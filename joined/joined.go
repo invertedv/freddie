@@ -44,6 +44,9 @@ func Load(monthly string, static string, table string, tmpDB string, create bool
 		}
 		// new fields
 		switch fd.Name {
+		case "bucket":
+			fd.Description = "loan bucket"
+			//			fd.ChSpec.Base, fd.ChSpec.Length = chutils.ChInt, 32
 		case "zip3":
 			fd.Description = "3 digit zip"
 			fd.ChSpec.Base, fd.ChSpec.Length = chutils.ChFixedString, 3
@@ -149,6 +152,7 @@ SELECT
     propType,
     substr(zip, 1, 3) AS zip3,
     s.lnId,
+    toInt32(modulo(arraySum(bitPositionsToArray(reinterpretAsUInt64(substr(s.lnId, 5, 8)))), 20)) AS bucket,
     purpose,
     term,
     numBorr,
